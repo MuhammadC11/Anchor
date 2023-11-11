@@ -5,13 +5,19 @@
     "description": "Our description here",
     "content_scripts": [
         {
-            "matches": ["https://*/*"],
-            "js": ["content-script.js"],
-            "css": ["global.css"]
+            "matches": [
+                "https://*/*"
+            ],
+            "js": [
+                "content-script.js"
+            ],
+            "css": [
+                "popup/popup.css"
+            ]
         }
     ],
     "action": {
-        "default_popup": "index.html"
+        "default_popup": "popup/popup.html"
     },
     "permissions": [
         "tabs"
