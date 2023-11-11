@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="popup.ts"></script>
+    <link rel="stylesheet" href="addTask.css" />
+    <title>Document</title>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header-container">
+        <h2 class="header">Anchor</h2>
+        <a href="https://google.com">
+          <img id="setting_icon" src="../assets/settingsIcon.svg" alt=""
+        /></a>
+      </div>
+    </div>
+    <div class="task-container">
+      <form action="">
+        <input type="text" name="task" id="task" placeholder="Add a task" />
+        <input type="submit" value="Add" id="add" />
+      </form>
+      <div class="button-container">
+        <button class="btn" id="dueDateBtn">
+          <img svg="calendar-regular.svg" />Due date
+        </button>
+        <button class="btn" id="priorityBtn">
+          <img svg="flag-regular.svg" />Priority
+        </button>
+        <button class="btn" id="addFileBtn">
+          <img svg="file-regular.svg" />Upload file
+        </button>
+      </div>
+    </div>
+  </body>
+</html>
