@@ -63,6 +63,13 @@
   line-height: normal;
 }
 
+.button-container {
+  display: flex;
+  width: 100%;
+  padding-bottom: 5rem;
+  justify-content: center;
+}
+
 .btn {
   display: flex;
   width: 310px;
@@ -71,6 +78,20 @@
   justify-content: center;
   align-items: center;
   gap: 8px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: #0a99ff;
+  text-decoration: none;
+  color: white;
+  font-size: ;
+}
+
+.link {
+  margin: auto;
+  text-decoration: none;
+  color: white;
+  font-family: Roboto sans-serif;
+  font-size: 1.5rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: normal;
 }
