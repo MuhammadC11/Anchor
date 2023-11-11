@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "name": "Hackprinceton2023",
+    "version": "0.1.0",
+    "description": "Our description here",
+    "content_scripts": [
+        {
+            "matches": ["https://*/*"],
+            "js": ["content-script.js"],
+            "css": ["global.css"]
+        }
+    ],
+    "action": {
+        "default_popup": "index.html"
+    },
+    "permissions": [
+        "tabs"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    }
+}

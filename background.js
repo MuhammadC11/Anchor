@@ -1,0 +1,1 @@
+// This file will act as the middleware that helps facilitate resources between content-script & popup
