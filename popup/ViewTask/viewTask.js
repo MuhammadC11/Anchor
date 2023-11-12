@@ -70,18 +70,18 @@ document.addEventListener("DOMContentLoaded", () => {
           if (key === id) {
             const storageChange = changes[key];
             console.log(
-              `Subtasks for the id "${key}"were: "${storageChange.oldValue}". New value: "${storageChange.newValue}".`
+              `Subtasks for the id "${key}" were: "${storageChange.oldValue}". New value: "${storageChange.newValue}".`
             );
 
             // Fetch the subtasks
             chrome.storage.local.get(id, (task) => {
-              const subtasks = task[id];
-              console.log("Fetched subtasks:", subtasks);
+              const ttask = task[id];
+              console.log("Fetched tasks:", task);
 
               subtaskElement.insertAdjacentHTML(
                 "beforeend",
                 `<ul class="subtask-name">
-                ${subtasks
+                ${ttask.subtasks
                   .map(
                     (subtaskArray) =>
                       `<h2>${subtaskArray[0]}</h2>

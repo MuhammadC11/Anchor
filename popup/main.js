@@ -7,14 +7,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
 
-  chrome.storage.local.get(null, function (data) {
+  chrome.storage.local.get(null, (data) => {
+    console.log(data);
+
     const taskIds = Object.keys(data);
     for (const id of taskIds) {
       const taskName = data[id].name;
       taskListElement.insertAdjacentHTML(
         "beforeend",
         `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}" id="${id}">${taskName}</a>
-        
+
         `
       );
     }

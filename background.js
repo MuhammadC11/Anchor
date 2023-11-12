@@ -8,7 +8,7 @@ const focus = {
 };
 
 async function fetchGPT(systemMessage, userMessage) {
-  const OPENAI_API_KEY = "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";
+  const OPENAI_API_KEY = "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";
   const apiUrl = "https://api.openai.com/v1/chat/completions";
 
   const headers = {
@@ -65,8 +65,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               .split("- ");
           });
 
-          chrome.storage.local.set({ [id]: subtasks }, () => {
-            console.log("subtasks saved to storage", subtasks);
+          chrome.storage.local.get(id, (result) => {
+            const oldTask = result[id] || {};
+            const newTask = { ...oldTask, subtasks };
+
+            chrome.storage.local.set({ [id]: newTask }, () => {
+              console.log("tasks updated", newTask);
+            });
           });
         })
         .catch((err) => console.error(err));
