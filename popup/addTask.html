@@ -17,17 +17,34 @@
       </div>
     </div>
     <div class="task-container">
-      <form action="">
-        <input type="text" name="task" id="task" placeholder="Add a task" />
-        <input type="submit" value="Add" id="add" />
+      <form action="" class="taskForm">
+        <input type="text" name="task" id="task" placeholder="Task name" />
+        <input
+          type="text"
+          name="description"
+          id="task"
+          placeholder="Description"
+        />
+        <button type="submit" value="Add" id="add">Add task</button>
       </form>
-      <div class="button-container">
+
+      <div class="details-container">
+        <img class="button-container" />
         <button class="btn" id="dueDateBtn">
           <img svg="calendar-regular.svg" />Due date
         </button>
-        <button class="btn" id="priorityBtn">
-          <img svg="flag-regular.svg" />Priority
+
+        <button class="btn">
+          <img svg="flag-regular.svg" />
+          Priority
+          <select name="Priority" id="">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
         </button>
+
         <button class="btn" id="addFileBtn">
           <img svg="file-regular.svg" />Upload file
         </button>
