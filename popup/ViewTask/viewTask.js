@@ -29,11 +29,38 @@ const jsonData = {
   },
 };
 
-// Iterate over the JSON data and modify the DOM elements.
-for (const taskId in jsonData) {
-  const task = jsonData[taskId];
+document.addEventListener("DOMContentLoaded", () => {
+  const taskListElement = document.querySelector(".details-container");
 
-  const taskElement = document.querySelector(`#task-${taskId}`);
+  //   for (const taskId in jsonData) {
+  //     const task = jsonData[taskId];
 
-  taskElement.textContent = task.name;
-}
+  //     // Create a new div for the task
+  //     const taskElement = document.createElement("div");
+
+  //     // Create elements for the name and description
+  //     const nameElement = document.createElement("h2");
+  //     nameElement.textContent = task.name;
+  //     nameElement.className = "name";
+
+  //     const descriptionElement = document.createElement("p");
+  //     descriptionElement.textContent = task.description;
+  //     descriptionElement.className = "description";
+
+  //     // Append the name and description to the task element
+  //     taskElement.appendChild(nameElement);
+  //     taskElement.appendChild(descriptionElement);
+
+  //     // Append the task element to the task list
+  //     taskListElement.appendChild(taskElement);
+  //   }
+  const task = Object.values(jsonData)[0];
+
+  taskListElement.insertAdjacentHTML(
+    "beforeend",
+    `<div class="details-container">
+  <h1 class="title">TITLE | ${task.name}</h1>
+  <h3 class="description">DESCRIPTION | ${task.description}</h3>
+</div>`
+  );
+});
