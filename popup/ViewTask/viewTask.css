@@ -1,0 +1,103 @@
+.container {
+  display: flex;
+  width: 35rem;
+  padding: 0px;
+  padding-bottom: 0px;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 5px;
+  background: #ffffff;
+}
+
+.header-container {
+  display: flex;
+  padding: 12px 16px;
+  justify-content: space-between;
+  align-items: flex-stretch;
+  align-self: stretch;
+}
+
+.header {
+  margin-top: auto;
+  color: #000000;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.3rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: normal;
+}
+
+#setting_icon {
+  display: flex;
+  margin-left: auto;
+  width: 25px;
+  height: 25px;
+  fill: rgb(0, 0, 0);
+  color: black;
+}
+
+.task-container {
+  display: flex;
+  padding: 24px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1 0 0;
+  align-self: stretch;
+}
+
+#task::placeholder {
+  color: #999;
+  font-family: "Inter", sans-serif;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: normal;
+}
+
+.btn {
+  display: flex;
+  cursor: pointer;
+  width: 10rem;
+  height: 32px;
+  padding: 4px 18px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  border-radius: 4px;
+  border: 1px solid #edeff1;
+}
+
+.taskForm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  align-self: stretch;
+}
+
+.options-container {
+  display: flex;
+  padding: 14px 0px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  align-self: stretch;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.btn2 {
+  display: flex;
+  width: 92px;
+  height: 32px;
+  padding: 8px 12px;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  border-radius: 5px;
+  background: #0a99ff;
+  border: 1px solid #edeff1;
+  cursor: pointer;
+}
