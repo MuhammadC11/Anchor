@@ -31,6 +31,7 @@ const jsonData = {
 
 document.addEventListener("DOMContentLoaded", () => {
   const taskListElement = document.querySelector(".details-container");
+  const optionsElement = document.querySelector(".options-container");
 
   //   for (const taskId in jsonData) {
   //     const task = jsonData[taskId];
@@ -59,8 +60,23 @@ document.addEventListener("DOMContentLoaded", () => {
   taskListElement.insertAdjacentHTML(
     "beforeend",
     `<div class="details-container">
-  <h1 class="title"> ${task.name}</h1>
-  <h3 class="description"> ${task.description}</h3>
+  <h1 class="title">${task.name}</h1>
+  <h3 class="description">${task.description}</h3>
 </div>`
+  );
+
+  optionsElement.insertAdjacentHTML(
+    "beforeend",
+    `<div class="btn" id="dueDateBtn">
+    <img svg="calendar-regular.svg" />Due date
+    <div id="datePicker" class="hidden">
+     ${task.due_date}
+    </div>
+  </div>
+
+  <div class="btn" id="priorityBtn">
+    <img svg="flag-regular.svg" />
+    Priority: <span id="priority">${task.priority}</span>
+  </div>`
   );
 });
