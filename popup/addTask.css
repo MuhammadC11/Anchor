@@ -48,7 +48,7 @@
 
 #task::placeholder {
   color: #999;
-  font-family: "Arial";
+  font-family: "Inter", sans-serif;
   font-size: 15px;
   font-style: normal;
   font-weight: 500;
