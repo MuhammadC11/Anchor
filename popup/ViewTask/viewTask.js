@@ -2,9 +2,9 @@ const taskListElement = document.querySelector("#task-list");
 
 const jsonData = {
   "8a69f5b3-7e82-4c11-b4d1-2bce96b9b5b1": {
-    name: "Task_One",
-    description: "Description for Task One",
-    subtasks: ["Subtask One.1", "Subtask One.2", "Subtask One.3"],
+    name: "Stay awake",
+    description: "Stay awake for 24 hours",
+    subtasks: ["Drink coffee", "keep the lights on", "listen to music"],
     due_date: "2023-11-15",
     priority: 2,
   },
