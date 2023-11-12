@@ -52,11 +52,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
 
+  let subtasksPresent = false;
+
   chrome.storage.local.get(id, (task) => {
     console.log(`task id ${id} retrieved:`, task);
 
-    const { name, description, due_date, priority /* subTasks */ } = task[id];
-    subTasks = Object.values(jsonData)[0].subtasks;
+    const { name, description, due_date, priority, subtasks } = task[id];
+
+    subtasksPresent = !!subtasks;
 
     taskListElement.insertAdjacentHTML(
       "beforeend",
@@ -69,44 +72,98 @@ document.addEventListener("DOMContentLoaded", () => {
     optionsElement.insertAdjacentHTML(
       "beforeend",
       `<div class="btn" id="dueDateBtn">
-      <img svg="calendar-regular.svg" />Due date: 
+      <img svg="calendar-regular.svg" />Due date:
       <div id="datePicker" class="hidden">
-       ${due_date}
+        ${due_date}
       </div>
     </div>
 
     <div class="btn" id="priorityBtn">
       <img svg="flag-regular.svg" />
-      Priority: <span id="priority">${priority}</span>
+      Priority: <span id="priority"> ${priority}</span>
     </div>`
     );
 
-    // subtaskElement.insertAdjacentHTML(
-    //   "beforeend",
-    //   ` <ul class="subtask-name">
-    //   <h2>${subTasks[0]} </h2>
-    //   ${subTasks
-    //     .slice(1)
-    //     .map((subTask) => `<li>${subTask}</li>`)
-    //     .join("")}
+    console.log("subtasks:", subtasks, "subtasksPresent:", subtasksPresent);
 
-    // </ul>`
-    // );
-
-    subtaskElement.insertAdjacentHTML(
-      "beforeend",
-      `<ul class="subtask-name">
-        ${subTasks
+    if (subtasksPresent)
+      subtaskElement.insertAdjacentHTML(
+        "beforeend",
+        `<ul class="subtask-name">
+        ${subtasks
           .map(
             (subTaskArray) =>
               `<h2>${subTaskArray[0]}</h2>
           ${subTaskArray
             .slice(1)
-            .map((subTask) => `<li>${subTask}</li>`)
+            .map((subtasks) => `<li>${subtasks}</li>`)
             .join("")}`
           )
           .join("")}
       </ul>`
-    );
+      );
+    else {
+      // listen for when subtasks are added
+
+      console.log("listening for changes");
+
+      chrome.storage.onChanged.addListener((changes, namespace) => {
+        for (let key in changes) {
+          if (key === id) {
+            const storageChange = changes[key];
+            console.log(
+              `Subtasks for the id "${key}"were: "${storageChange.oldValue}". New value: "${storageChange.newValue}".`
+            );
+
+            // Fetch the subtasks
+            chrome.storage.local.get(id, (task) => {
+              const subtasks = task[id];
+              console.log("Fetched subtasks:", subtasks);
+
+              subtaskElement.insertAdjacentHTML(
+                "beforeend",
+                `<ul class="subtask-name">
+                ${subtasks
+                  .map(
+                    (subtaskArray) =>
+                      `<h2>${subtaskArray[0]}</h2>
+                  ${subtaskArray
+                    .slice(1)
+                    .map((subtasks) => `<li>${subtasks}</li>`)
+                    .join("")}`
+                  )
+                  .join("")}
+              </ul>`
+              );
+            });
+          }
+        }
+      });
+    }
   });
+
+  // listen for when subtasks are added (if they aren't already)
+  if (!subtasksPresent) {
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      for (let key in changes) {
+        if (key === id) {
+          const storageChange = changes[key];
+          console.log(
+            'Subtasks for the id "%s" were: "%s". New value: "%s".',
+            key,
+            storageChange.oldValue,
+            storageChange.newValue
+          );
+
+          // Fetch the subtasks
+          chrome.storage.local.get(id, (task) => {
+            const subtasks = task[id];
+            console.log("Fetched subtasks:", subtasks);
+
+            // TODO: Use the fetched subtasks
+          });
+        }
+      }
+    });
+  }
 });

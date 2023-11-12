@@ -36,7 +36,44 @@ async function fetchGPT(systemMessage, userMessage) {
   return data.choices[0].message.content;
 }
 
-const handleTabActivation = async () => {
+// message handler
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  switch (request.type) {
+    case "newTask":
+      const { id, name, description } = request;
+
+      console.log(`fetching GPT3: ${name} | ${description}`);
+
+      fetchGPT(
+        "Given the task name (first sentence) and description, break up this task into actionable subtasks so I have an idea of where to start with my task. Limit this to 5 subtasks maximum and ONLY return these 5 subtasks, along with a 1-3 tips for each. After naming each subtask, do not use a semicolon and prefix each tip with '\n- '. Sample Output: 1. subtask\n- tip\n- tip\n- tip\n2. subtask\n- tip\n- tip\n- tip\n3. subtask\n- tip\n- tip\n- tip\n ...",
+        `Title: ${name}. ${description}`
+      )
+        .then((res) => {
+          console.log("sent to API:", res);
+
+          const subtasks = res.split("\n\n").map((subtask) => {
+            return subtask
+              .replace(/^\d+\.\s*/, "")
+              .trim()
+              .split("- ");
+          });
+
+          chrome.storage.local.set({ [id]: subtasks }, () => {
+            console.log("subtasks saved to storage", subtasks);
+          });
+        })
+        .catch((err) => console.error(err));
+
+      // Indicate that we will call sendResponse asynchronously
+      return true;
+
+    default:
+      break;
+  }
+});
+
+// tab activation
+chrome.tabs.onUpdated.addListener(async () => {
   const [tab] = await chrome.tabs.query({
     active: true,
     lastFocusedWindow: true,
@@ -54,8 +91,4 @@ const handleTabActivation = async () => {
   //   ).then();
   //
   //   console.log("response:", response);
-};
-
-chrome.tabs.onUpdated.addListener(() => {
-  handleTabActivation();
 });
