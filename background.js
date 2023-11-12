@@ -45,9 +45,9 @@ const handleTabActivation = async () => {
   // const tabId = tab.id;
   const tabName = tab.title;
 
-  console.log("tab name", tabName);
-  console.log("url", url);
-
+  // console.log("tab name", tabName);
+  // console.log("url", url);
+  //
   //   const response = await fetchGPT3(
   //     "",
   //     `Give a one sentence elaboration on: ${url}`

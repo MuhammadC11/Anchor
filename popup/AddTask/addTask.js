@@ -1,11 +1,28 @@
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 15);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  const button = document.getElementById("add");
-  if (button) {
-    button.addEventListener("click", function (event) {
-      event.preventDefault(); // Prevent the form from submitting
-      window.location.href = "../ViewTask/viewTask.html";
-    });
-  } else {
-    console.log('Button with id "add" does not exist');
-  }
+  document.getElementById("taskForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const id = generateId();
+    const task = {
+      name: document.getElementById("task_name").value,
+      description: document.getElementById("task_description").value,
+      due_date: document.getElementById("due_date").value,
+      priority: document.getElementById("priority").value,
+    };
+
+    chrome.storage.local.set(
+      {
+        [id]: task,
+      },
+      () => {
+        console.log("task saved to storage", task);
+      }
+    );
+
+    window.location.href = `../ViewTask/viewTask.html?id=${id}`;
+  });
 });
