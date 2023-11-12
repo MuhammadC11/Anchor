@@ -29,33 +29,24 @@
           id="description"
           placeholder="Description"
         />
-        <button type="submit" value="Add" id="add">Add task</button>
+        <div class="options-container">
+          <button class="btn" id="dueDateBtn">
+            <img svg="calendar-regular.svg" />Due date
+          </button>
+
+          <button class="btn">
+            <img svg="flag-regular.svg" />
+            Priority
+            <select name="Priority" id="">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </button>
+        </div>
+        <button class="btn2" type="submit" value="Add" id="add">Submit</button>
       </form>
-
-      <div class="details-container">
-        <img class="button-container" />
-        <button class="btn" id="dueDateBtn">
-          <img svg="calendar-regular.svg" />Due date
-        </button>
-
-        <button class="btn">
-          <img svg="flag-regular.svg" />
-          Priority
-          <select name="Priority" id="">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-          </select>
-        </button>
-
-        <button class="btn" id="addFileBtn">
-          <img svg="file-regular.svg" />Upload file
-        </button>
-      </div>
-      <div class="footer-container">
-        <button class="btn2" id="submitTaskBtn">Add task</button>
-      </div>
     </div>
   </body>
 </html>

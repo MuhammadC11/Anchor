@@ -76,25 +76,15 @@
   align-self: stretch;
 }
 
-.details-container {
+.options-container {
   display: flex;
+  padding: 14px 0px;
   flex-direction: row;
   align-items: center;
   gap: 12px;
   align-self: stretch;
   justify-content: space-evenly;
   width: 100%;
-}
-
-.footer-container {
-  display: flex;
-  gap: 8px;
-  height: 44px;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-end;
-  flex-shrink: 0;
-  align-self: stretch;
 }
 
 .btn2 {
@@ -107,4 +97,5 @@
   gap: 8px;
   border-radius: 5px;
   background: #0a99ff;
+  border: 1px solid #edeff1;
 }
