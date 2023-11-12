@@ -52,14 +52,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
 
-  const subtasksPresent = false;
+  let subtasksPresent = false;
 
   chrome.storage.local.get(id, (task) => {
     console.log(`task id ${id} retrieved:`, task);
 
     const { name, description, due_date, priority, subtasks } = task[id];
 
-    subtasksPresent = subtasks.length > 0;
+    subtasksPresent = !!subtasks;
 
     taskListElement.insertAdjacentHTML(
       "beforeend",
@@ -74,27 +74,29 @@ document.addEventListener("DOMContentLoaded", () => {
       `<div class="btn" id="dueDateBtn">
       <img svg="calendar-regular.svg" />Due date:
       <div id="datePicker" class="hidden">
-       ${due_date}
+        ${due_date}
       </div>
     </div>
 
     <div class="btn" id="priorityBtn">
       <img svg="flag-regular.svg" />
-      Priority: <span id="priority">${priority}</span>
+      Priority: <span id="priority"> ${priority}</span>
     </div>`
     );
+
+    console.log("subtasks:", subtasks, "subtasksPresent:", subtasksPresent);
 
     if (subtasksPresent)
       subtaskElement.insertAdjacentHTML(
         "beforeend",
         `<ul class="subtask-name">
-        ${subTasks
+        ${subtasks
           .map(
             (subTaskArray) =>
               `<h2>${subTaskArray[0]}</h2>
           ${subTaskArray
             .slice(1)
-            .map((subTask) => `<li>${subTask}</li>`)
+            .map((subtasks) => `<li>${subtasks}</li>`)
             .join("")}`
           )
           .join("")}
@@ -102,15 +104,15 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     else {
       // listen for when subtasks are added
+
+      console.log("listening for changes");
+
       chrome.storage.onChanged.addListener((changes, namespace) => {
         for (let key in changes) {
           if (key === id) {
             const storageChange = changes[key];
             console.log(
-              'Subtasks for the id "%s" were: "%s". New value: "%s".',
-              key,
-              storageChange.oldValue,
-              storageChange.newValue
+              `Subtasks for the id "${key}"were: "${storageChange.oldValue}". New value: "${storageChange.newValue}".`
             );
 
             // Fetch the subtasks
@@ -121,13 +123,13 @@ document.addEventListener("DOMContentLoaded", () => {
               subtaskElement.insertAdjacentHTML(
                 "beforeend",
                 `<ul class="subtask-name">
-                ${subTasks
+                ${subtasks
                   .map(
-                    (subTaskArray) =>
-                      `<h2>${subTaskArray[0]}</h2>
-                  ${subTaskArray
+                    (subtaskArray) =>
+                      `<h2>${subtaskArray[0]}</h2>
+                  ${subtaskArray
                     .slice(1)
-                    .map((subTask) => `<li>${subTask}</li>`)
+                    .map((subtasks) => `<li>${subtasks}</li>`)
                     .join("")}`
                   )
                   .join("")}
