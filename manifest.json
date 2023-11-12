@@ -1,29 +1,20 @@
 {
-    "manifest_version": 3,
-    "name": "Hackprinceton2023",
-    "version": "0.1.0",
-    "description": "Our description here",
-    "content_scripts": [
-        {
-            "matches": [
-                "https://*/*"
-            ],
-            "js": [
-                "content-script.js"
-            ],
-            "css": [
-                "assets/global.css"
-            ]
-        }
-    ],
-    "action": {
-        "default_popup": "popup/popup.html"
-    },
-    "permissions": [
-        "tabs",
-        "storage"
-    ],
-    "background": {
-        "service_worker": "background.js"
+  "manifest_version": 3,
+  "name": "Hackprinceton2023",
+  "version": "0.1.0",
+  "description": "Our description here",
+  "content_scripts": [
+    {
+      "matches": ["https://*/*"],
+      "js": ["content-script.js"],
+      "css": ["assets/global.css"]
     }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "permissions": ["tabs", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  }
 }

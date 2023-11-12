@@ -27,6 +27,15 @@
   line-height: normal;
 }
 
+#home_icon {
+  display: flex;
+  margin-left: auto;
+  width: 25px;
+  height: 25px;
+  fill: rgb(0, 0, 0);
+  color: black;
+}
+
 #setting_icon {
   display: flex;
   margin-left: auto;
