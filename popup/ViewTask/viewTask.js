@@ -52,11 +52,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
 
+  const subtasksPresent = false;
+
   chrome.storage.local.get(id, (task) => {
     console.log(`task id ${id} retrieved:`, task);
 
-    const { name, description, due_date, priority /* subTasks */ } = task[id];
-    subTasks = Object.values(jsonData)[0].subtasks;
+    const { name, description, due_date, priority, subtasks } = task[id];
+
+    subtasksPresent = subtasks.length > 0;
 
     taskListElement.insertAdjacentHTML(
       "beforeend",
@@ -69,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
     optionsElement.insertAdjacentHTML(
       "beforeend",
       `<div class="btn" id="dueDateBtn">
-      <img svg="calendar-regular.svg" />Due date: 
+      <img svg="calendar-regular.svg" />Due date:
       <div id="datePicker" class="hidden">
        ${due_date}
       </div>
@@ -81,21 +84,10 @@ document.addEventListener("DOMContentLoaded", () => {
     </div>`
     );
 
-    // subtaskElement.insertAdjacentHTML(
-    //   "beforeend",
-    //   ` <ul class="subtask-name">
-    //   <h2>${subTasks[0]} </h2>
-    //   ${subTasks
-    //     .slice(1)
-    //     .map((subTask) => `<li>${subTask}</li>`)
-    //     .join("")}
-
-    // </ul>`
-    // );
-
-    subtaskElement.insertAdjacentHTML(
-      "beforeend",
-      `<ul class="subtask-name">
+    if (subtasksPresent)
+      subtaskElement.insertAdjacentHTML(
+        "beforeend",
+        `<ul class="subtask-name">
         ${subTasks
           .map(
             (subTaskArray) =>
@@ -107,6 +99,69 @@ document.addEventListener("DOMContentLoaded", () => {
           )
           .join("")}
       </ul>`
-    );
+      );
+    else {
+      // listen for when subtasks are added
+      chrome.storage.onChanged.addListener((changes, namespace) => {
+        for (let key in changes) {
+          if (key === id) {
+            const storageChange = changes[key];
+            console.log(
+              'Subtasks for the id "%s" were: "%s". New value: "%s".',
+              key,
+              storageChange.oldValue,
+              storageChange.newValue
+            );
+
+            // Fetch the subtasks
+            chrome.storage.local.get(id, (task) => {
+              const subtasks = task[id];
+              console.log("Fetched subtasks:", subtasks);
+
+              subtaskElement.insertAdjacentHTML(
+                "beforeend",
+                `<ul class="subtask-name">
+                ${subTasks
+                  .map(
+                    (subTaskArray) =>
+                      `<h2>${subTaskArray[0]}</h2>
+                  ${subTaskArray
+                    .slice(1)
+                    .map((subTask) => `<li>${subTask}</li>`)
+                    .join("")}`
+                  )
+                  .join("")}
+              </ul>`
+              );
+            });
+          }
+        }
+      });
+    }
   });
+
+  // listen for when subtasks are added (if they aren't already)
+  if (!subtasksPresent) {
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      for (let key in changes) {
+        if (key === id) {
+          const storageChange = changes[key];
+          console.log(
+            'Subtasks for the id "%s" were: "%s". New value: "%s".',
+            key,
+            storageChange.oldValue,
+            storageChange.newValue
+          );
+
+          // Fetch the subtasks
+          chrome.storage.local.get(id, (task) => {
+            const subtasks = task[id];
+            console.log("Fetched subtasks:", subtasks);
+
+            // TODO: Use the fetched subtasks
+          });
+        }
+      }
+    });
+  }
 });
