@@ -96,8 +96,37 @@ document.addEventListener("DOMContentLoaded", () => {
       const taskName = data[id].name;
       taskListElement.insertAdjacentHTML(
         "beforeend",
-        `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}">${taskName}</a>`
+        `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}">${taskName}</a>
+        <button id="deleteTask">Delete</button>
+        `
       );
     }
   });
+
+  // this is the code for the delete button
+  var deleteTaskElement = document.getElementById("deleteTask");
+  if (deleteTaskElement) {
+    deleteTaskElement.addEventListener("click", function () {
+      const id = this.getAttribute("data-id");
+      chrome.storage.local.remove([id], function () {
+        var error = chrome.runtime.lastError;
+        if (error) {
+          console.error(error);
+        }
+      });
+    });
+  }
+
+  // this is the code for the clear all button on click of a button
+  var clearTasksElement = document.getElementById("clearTasks");
+  if (clearTasksElement) {
+    clearTasksElement.addEventListener("click", function () {
+      chrome.storage.local.clear(function () {
+        var error = chrome.runtime.lastError;
+        if (error) {
+          console.error(error);
+        }
+      });
+    });
+  }
 });
