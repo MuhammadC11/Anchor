@@ -14,23 +14,25 @@
   display: flex;
   padding: 12px 16px;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-stretch;
   align-self: stretch;
 }
 
 .header {
+  margin-top: auto;
   color: #000000;
   font-family: "Space Grotesk", sans-serif;
-  font-size: 2rem;
+  font-size: 1.3rem;
   font-style: normal;
-  font-weight: 600;
+  font-weight: 400;
   line-height: normal;
 }
 
 #setting_icon {
   display: flex;
-  width: 2rem;
-  height: 2rem;
+  margin-left: auto;
+  width: 25px;
+  height: 25px;
   fill: rgb(0, 0, 0);
   color: black;
 }
