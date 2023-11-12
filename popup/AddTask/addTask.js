@@ -1,13 +1,11 @@
-document.addEventListener("DOMContentLoaded", function () {
-  // Get references to elements
-  const dueDateBtn = document.getElementById("dueDateBtn");
-  const datePicker = document.getElementById("datePicker");
-  const selectedDateInput = document.getElementById("selectedDate");
-  const storeDateBtn = document.getElementById("storeDateBtn");
-
-  // Event listener to store the selected date
-  storeDateBtn.addEventListener("click", function () {
-    const selectedDate = selectedDateInput.value;
-    console.log("Selected Date:", selectedDate);
-  });
+document.addEventListener("DOMContentLoaded", () => {
+  const button = document.getElementById("add");
+  if (button) {
+    button.addEventListener("click", function (event) {
+      event.preventDefault(); // Prevent the form from submitting
+      window.location.href = "../ViewTask/viewTask.html";
+    });
+  } else {
+    console.log('Button with id "add" does not exist');
+  }
 });
