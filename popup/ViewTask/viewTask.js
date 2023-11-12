@@ -59,8 +59,8 @@ document.addEventListener("DOMContentLoaded", () => {
   taskListElement.insertAdjacentHTML(
     "beforeend",
     `<div class="details-container">
-  <h1 class="title">TITLE | ${task.name}</h1>
-  <h3 class="description">DESCRIPTION | ${task.description}</h3>
+  <h1 class="title"> ${task.name}</h1>
+  <h3 class="description"> ${task.description}</h3>
 </div>`
   );
 });
