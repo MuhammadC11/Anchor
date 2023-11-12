@@ -78,3 +78,22 @@
   align-self: stretch;
   padding: 0 16px;
 }
+
+.btn2 {
+  display: flex;
+  width: 92px;
+  height: 32px;
+  padding: 8px 12px;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  border-radius: 5px;
+  background: #0a99ff;
+  border: 1px solid #edeff1;
+  cursor: pointer;
+}
+
+.button-container {
+  display: flex;
+  justify-content: flex-end;
+}
