@@ -1,6 +1,6 @@
 // This file will only have access to the browsers DOM
 
-async function fetchGPT(systemMessage, userMessage) {
+/* async function fetchGPT(systemMessage, userMessage) {
   const OPENAI_API_KEY = "";
   const apiUrl = "https://api.openai.com/v1/chat/completions";
 
@@ -36,19 +36,12 @@ async function fetchGPT(systemMessage, userMessage) {
   return data.choices[0].message.content;
 }
 
-// chrome.runtime.onConnect.addListener((port) => {
-//   console.log("connected ", port);
-//
-//   if (port.name === "port1") {
-//     port.onMessage.addListener(this.processMessage);
-//   }
-// });
-
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.type) {
     case "newTask":
       const { title, description } = request;
 
+      console.log(`fetching GPT3: ${title} | ${description}`);
       fetchGPT(
         "Given the task name and description, break up this task into actionable subtasks so I have an idea of where to start with my task. Limit this to 5 subtasks maximum.",
         `Title: ${title}\nDescription: ${description}`
@@ -59,7 +52,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         })
         .catch((error) => {
           console.error(error);
-          sendResponse({ message: "Error occurred" });
+          sendResponse({ message: "Error occurred", data: error });
         });
 
       // Indicate that we will call sendResponse asynchronously
@@ -68,11 +61,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     default:
       break;
   }
-
-  // if (request.status === "validated") {
-  //   console.log("validated");
-  // }
-});
+}); */
 
 //   const response = await fetchGPT3(
 //     "",

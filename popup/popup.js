@@ -13,21 +13,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
       console.log("popup.js | form submitted");
 
-      // have to use a port here to get past the unchecked runtime.lastError (w/ async calls)
-      //       port = chrome.runtime.connect(null, { name: "hi" });
-      //       port.onDisconnect.addListener((obj) => {
-      //         console.log("disconnected port");
-      //       });
+      //       chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+      //         chrome.tabs.sendMessage(
+      //           tab.id,
+      //           { title, description, type: "newTask" },
+      //           (response) => {
+      //             console.log("popup.js | Response: ", response);
       //
-      //       port.sendMessage({ title, description, type: "newTask" }, (response) => {
-      //         console.log("popup.js | Reponse: ", response);
+      //             const steps = response.data.split("\n\n");
+      //
+      //             document
+      //               .querySelector(".container")
+      //               .insertAdjacentHTML(
+      //                 "beforeend",
+      //                 `<ol>${steps.map((step) => `<ul>${step}</ul>`)}</ol>`
+      //               );
+      //           }
+      //         );
       //       });
 
       chrome.runtime.sendMessage(
         { title, description, type: "newTask" },
-        (response) => {
-          console.log("popup.js | Reponse: ", response);
-        }
+        (response) => callback(response)
       );
+
+      function callback(response) {
+        console.log("popup.js | Response: ", response);
+
+        const steps = response.data.split("\n");
+
+        document
+          .querySelector(".container")
+          .insertAdjacentHTML(
+            "beforeend",
+            `<ol>${steps.map((step) => `<ul>${step}</ul>`)}</ol>`
+          );
+      }
     });
 });
