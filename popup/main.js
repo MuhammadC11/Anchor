@@ -46,29 +46,6 @@ const jsonData = {
 // document.addEventListener("DOMContentLoaded", () => {
 //   const taskListElement = document.querySelector(".taskList");
 
-//   // const task = Object.values(jsonData)[0];
-
-//   const params = new URLSearchParams(window.location.search);
-//   const id = params.get("id");
-
-//   chrome.storage.local.get("taskIds", function (data) {
-//     const taskIds = data.taskIds || [];
-//     for (const id of taskIds) {
-//       chrome.storage.local.get(id, function (task) {
-//         const { name } = task[id];
-//         name = Object.values(jsonData)[0].name;
-//         taskListElement.insertAdjacentHTML(
-//           "beforeend",
-//           `<h2 class="taskNames">${name}</h2>`
-//         );
-//       });
-//     }
-//   });
-// });
-
-// document.addEventListener("DOMContentLoaded", () => {
-//   const taskListElement = document.querySelector(".taskList");
-
 //   const params = new URLSearchParams(window.location.search);
 //   const id = params.get("id");
 
@@ -86,6 +63,7 @@ const jsonData = {
 
 document.addEventListener("DOMContentLoaded", () => {
   const taskListElement = document.querySelector(".taskList");
+  const taskNamesElement = document.querySelector(".taskNames");
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
@@ -96,28 +74,33 @@ document.addEventListener("DOMContentLoaded", () => {
       const taskName = data[id].name;
       taskListElement.insertAdjacentHTML(
         "beforeend",
-        `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}">${taskName}</a>
-        <div class="button-container">
-        <button class="btn2" id="deleteTask">Delete</button>
-        </div>
+        `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}" id="${id}">${taskName}</a>
+        
         `
       );
     }
   });
 
   // this is the code for the delete button
-  var deleteTaskElement = document.getElementById("deleteTask");
-  if (deleteTaskElement) {
-    deleteTaskElement.addEventListener("click", function () {
-      const id = this.getAttribute("data-id");
-      chrome.storage.local.remove([id], function () {
-        var error = chrome.runtime.lastError;
-        if (error) {
-          console.error(error);
-        }
-      });
-    });
-  }
+  //   if (taskNamesElement) {
+  //     var deleteID = taskNamesElement.getAttribute("id");
+
+  //     var deleteTaskElement = document.getElementById("deleteTask");
+  //     if (deleteTaskElement) {
+  //       deleteTaskElement.addEventListener("click", function () {
+  //         console.log("delete button clicked");
+
+  //         chrome.storage.local.remove([deleteID], function () {
+  //           var error = chrome.runtime.lastError;
+  //           if (error) {
+  //             console.error(error);
+  //           } else {
+  //             location.reload();
+  //           }
+  //         });
+  //       });
+  //     }
+  //   }
 
   // this is the code for the clear all button on click of a button
   var clearTasksElement = document.getElementById("clearTasks");
@@ -127,6 +110,8 @@ document.addEventListener("DOMContentLoaded", () => {
         var error = chrome.runtime.lastError;
         if (error) {
           console.error(error);
+        } else {
+          location.reload();
         }
       });
     });
