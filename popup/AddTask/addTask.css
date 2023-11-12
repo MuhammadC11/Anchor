@@ -59,11 +59,13 @@
 
 .btn {
   display: flex;
+  cursor: pointer;
+  width: 10rem;
   height: 32px;
   padding: 4px 18px;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  text-align: center;
   border-radius: 4px;
   border: 1px solid #edeff1;
 }
@@ -83,7 +85,7 @@
   align-items: center;
   gap: 12px;
   align-self: stretch;
-  justify-content: space-evenly;
+  justify-content: flex-start;
   width: 100%;
 }
 
@@ -98,4 +100,5 @@
   border-radius: 5px;
   background: #0a99ff;
   border: 1px solid #edeff1;
+  cursor: pointer;
 }
