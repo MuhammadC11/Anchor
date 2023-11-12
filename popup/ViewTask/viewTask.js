@@ -33,50 +33,37 @@ document.addEventListener("DOMContentLoaded", () => {
   const taskListElement = document.querySelector(".details-container");
   const optionsElement = document.querySelector(".options-container");
 
-  //   for (const taskId in jsonData) {
-  //     const task = jsonData[taskId];
+  // const task = Object.values(jsonData)[0];
 
-  //     // Create a new div for the task
-  //     const taskElement = document.createElement("div");
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("id");
 
-  //     // Create elements for the name and description
-  //     const nameElement = document.createElement("h2");
-  //     nameElement.textContent = task.name;
-  //     nameElement.className = "name";
+  chrome.storage.local.get(id, (task) => {
+    console.log(`task id ${id} retrieved:`, task);
 
-  //     const descriptionElement = document.createElement("p");
-  //     descriptionElement.textContent = task.description;
-  //     descriptionElement.className = "description";
+    const { name, description, due_date, priority } = task[id];
 
-  //     // Append the name and description to the task element
-  //     taskElement.appendChild(nameElement);
-  //     taskElement.appendChild(descriptionElement);
-
-  //     // Append the task element to the task list
-  //     taskListElement.appendChild(taskElement);
-  //   }
-  const task = Object.values(jsonData)[0];
-
-  taskListElement.insertAdjacentHTML(
-    "beforeend",
-    `<div class="details-container">
-  <h1 class="title">${task.name}</h1>
-  <h3 class="description">${task.description}</h3>
-</div>`
-  );
-
-  optionsElement.insertAdjacentHTML(
-    "beforeend",
-    `<div class="btn" id="dueDateBtn">
-    <img svg="calendar-regular.svg" />Due date
-    <div id="datePicker" class="hidden">
-     ${task.due_date}
-    </div>
-  </div>
-
-  <div class="btn" id="priorityBtn">
-    <img svg="flag-regular.svg" />
-    Priority: <span id="priority">${task.priority}</span>
+    taskListElement.insertAdjacentHTML(
+      "beforeend",
+      `<div class="details-container">
+    <h1 class="title">${name}</h1>
+    <h3 class="description">${description}</h3>
   </div>`
-  );
+    );
+
+    optionsElement.insertAdjacentHTML(
+      "beforeend",
+      `<div class="btn" id="dueDateBtn">
+      <img svg="calendar-regular.svg" />Due date
+      <div id="datePicker" class="hidden">
+       ${due_date}
+      </div>
+    </div>
+
+    <div class="btn" id="priorityBtn">
+      <img svg="flag-regular.svg" />
+      Priority: <span id="priority">${priority}</span>
+    </div>`
+    );
+  });
 });

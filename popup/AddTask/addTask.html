@@ -23,25 +23,27 @@
 
     <div class="task-container">
       <form action="" id="taskForm">
-        <input type="text" name="task" id="task" placeholder="Task name" />
+        <input type="text" name="task_name" id="task_name" placeholder="Task name" />
+
         <input
           type="text"
-          name="description"
-          id="description"
+          name="task_description"
+          id="task_description"
           placeholder="Description"
         />
+
         <div class="options-container">
           <div id="dueDateBtn">
             <img svg="calendar-regular.svg" />Due date
             <div id="datePicker" class="hidden">
-              <input type="date" id="selectedDate" />
+              <input type="date" id="due_date" />
             </div>
           </div>
 
           <div id="priorityBtn">
             <img svg="flag-regular.svg" />
             Priority
-            <select name="Priority">
+            <select name="Priority" id="priority">
               <option value="1">1</option>
               <option value="2">2</option>
               <option value="3">3</option>
@@ -51,7 +53,7 @@
         </div>
 
         <div class="button-container">
-          <button class="btn2" type="submit" id="add">Submit</button>
+          <button class="btn2" type="submit" id="submit-form">Submit</button>
         </div>
       </form>
     </div>
