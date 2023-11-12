@@ -31,15 +31,15 @@
           placeholder="Description"
         />
         <div class="options-container">
-          <button class="btn" id="dueDateBtn">
+          <div class="btn" id="dueDateBtn">
             <img svg="calendar-regular.svg" />Due date
             <div id="datePicker" class="hidden">
               <input type="date" id="selectedDate" />
             </div>
             <script src="popup.js"></script>
-          </button>
+          </div>
 
-          <button class="btn" id="priorityBtn">
+          <div class="btn" id="priorityBtn">
             <img svg="flag-regular.svg" />
             Priority
             <select name="Priority" id="">
@@ -48,7 +48,7 @@
               <option value="3">3</option>
               <option value="4">4</option>
             </select>
-          </button>
+          </div>
         </div>
         <button class="btn2" type="submit" value="Add" id="add">Submit</button>
       </form>
