@@ -12,7 +12,7 @@
                 "content-script.js"
             ],
             "css": [
-                "popup/popup.css"
+                "assets/global.css"
             ]
         }
     ],
