@@ -97,7 +97,9 @@ document.addEventListener("DOMContentLoaded", () => {
       taskListElement.insertAdjacentHTML(
         "beforeend",
         `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}">${taskName}</a>
-        <button id="deleteTask">Delete</button>
+        <div class="button-container">
+        <button class="btn2" id="deleteTask">Delete</button>
+        </div>
         `
       );
     }
