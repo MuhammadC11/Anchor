@@ -8,7 +8,7 @@ const focus = {
 };
 
 async function fetchGPT(systemMessage, userMessage) {
-  const OPENAI_API_KEY = "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";
+  const OPENAI_API_KEY = "";
   const apiUrl = "https://api.openai.com/v1/chat/completions";
 
   const headers = {
