@@ -257,6 +257,7 @@ function advancePomodoroPhase() {
   chrome.alarms.clear("pomodoroTimer");
 
   if (pomodoroState.phase === "work") {
+    // End of Work Phase: Transition to Break
     sendPomodoroNotification(
       "Pomodoro Complete!",
       `Time for a ${pomodoroState.breakDuration / 60}-minute break. Task: ${
@@ -267,22 +268,38 @@ function advancePomodoroPhase() {
     pomodoroState.remainingTime = pomodoroState.breakDuration;
     pomodoroState.startTime = Date.now(); // Critical: Set startTime for the break phase
     schedulePomodoroAlarm(pomodoroState.breakDuration * 1000);
+
+    // Set focus.active to FALSE during the break
+    focus.active = false; // Turn off distraction during break
+    // DO NOT clear focus.id, focus.name, focus.description here
+    // as we intend to return to this task after the break.
+    saveFocusStateToStorage();
+    console.log("[Focus] Distraction mode deactivated for break.");
   } else {
     // It's 'break' phase
+    // End of Break Phase: Transition back to Work for the same task
     sendPomodoroNotification(
       "Break Over!",
       `Time to get back to work! Task: ${
         pomodoroState.focusedTaskName || "N/A"
       }`
     );
-    pomodoroState.phase = "work"; // Reset to work phase
-    pomodoroState.remainingTime = pomodoroState.workDuration; // Reset to full work duration for next cycle
-    pomodoroState.isRunning = false; // Stop after one full cycle (work + break)
-    pomodoroState.focusedTaskId = null;
-    pomodoroState.focusedTaskName = null;
-    pomodoroState.startTime = null; // Critical: Clear startTime when timer stops
+    pomodoroState.phase = "work"; // Transition back to work phase
+    pomodoroState.remainingTime = pomodoroState.workDuration; // Set for next work cycle
+    pomodoroState.startTime = Date.now(); // Critical: Set startTime for the next work phase
+
+    // The Pomodoro is still running for the same task, so don't set isRunning to false yet.
+    // The alarm will be scheduled immediately for the next work period.
+    schedulePomodoroAlarm(pomodoroState.workDuration * 1000);
+
+    // Set focus.active to TRUE to re-activate distraction mode for the same task
+    focus.active = true; // Turn on distraction after break
+    // Crucially, focus.id/name/description should still hold the task details from before the break.
+    // So, no need to re-assign them unless they were explicitly cleared.
+    saveFocusStateToStorage();
+    console.log("[Focus] Distraction mode reactivated for next work period.");
   }
-  savePomodoroState();
+  savePomodoroState(); // Save current pomodoro state
 }
 
 // --- Event Listeners ---
@@ -357,7 +374,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Start a new Pomodoro cycle for this task
         pomodoroState.isRunning = true;
         pomodoroState.phase = "work";
-        pomodoroState.workDuration = 25 * 60; // Ensure these are set
+        pomodoroState.workDuration = 1 * 60; // Ensure these are set
         pomodoroState.breakDuration = 5 * 60; // Ensure these are set
         pomodoroState.remainingTime = pomodoroState.workDuration;
         pomodoroState.focusedTaskId = id;
