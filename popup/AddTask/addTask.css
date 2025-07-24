@@ -17,6 +17,11 @@
   align-self: stretch;
 }
 
+img {
+  width: 25px;
+  height: 25px;
+}
+
 .header {
   margin-top: auto;
   color: #000000;

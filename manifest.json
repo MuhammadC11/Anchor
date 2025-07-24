@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Hackprinceton2023",
+  "name": "Anchor",
   "version": "0.1.0",
   "description": "Our description here",
   "content_scripts": [
