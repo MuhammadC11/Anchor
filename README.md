@@ -168,9 +168,9 @@ The Pomodoro timer and distraction detection features use native desktop notific
 
 ## Contributing
 
-(Optional: Add information on how others can contribute to your project, e.g., bug reports, feature requests, code contributions.)
+**To contribute to my repo just send me a pull request and I will check it and give feedback**
 
 ## License
 
-(Optional: Add your project's license information, e.g., MIT License.)
+MIT License
 
