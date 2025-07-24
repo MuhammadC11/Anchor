@@ -1,15 +1,36 @@
 const taskListElement = document.querySelector("#task-list"); // This global variable seems unused within DOMContentLoaded
 
 document.addEventListener("DOMContentLoaded", () => {
-  const detailsContainerElement = document.querySelector(".details-container"); // Corrected variable name
+  const detailsContainerElement = document.querySelector(".details-container");
   const optionsElement = document.querySelector(".options-container");
   const subtaskElement = document.querySelector(".subtask-container");
-  const focusBtn = document.querySelector("#focus-btn"); // Get focus button early
+  const focusBtn = document.querySelector("#focus-btn");
+
+  const pomodoroTimerDisplay = document.createElement("div");
+  pomodoroTimerDisplay.id = "pomodoro-timer-display";
+  pomodoroTimerDisplay.innerHTML =
+    '<span class="timer-value">--:--</span> <span class="timer-phase">(Not Active)</span>';
+  pomodoroTimerDisplay.style.cssText = `
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #e0f7fa;
+    border-left: 5px solid #00bcd4;
+    border-radius: 5px;
+    text-align: center;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #00796b;
+  `;
+  if (detailsContainerElement) {
+    detailsContainerElement.parentNode.insertBefore(
+      pomodoroTimerDisplay,
+      detailsContainerElement.nextSibling
+    );
+  }
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
 
-  // --- IMPORTANT NEW VALIDATION (from previous fix) ---
   if (!id) {
     console.error("No task ID provided in URL. Cannot display task.");
     if (detailsContainerElement) {
@@ -19,19 +40,17 @@ document.addEventListener("DOMContentLoaded", () => {
         <button onclick="window.location.href='../popup.html'">Go to Home</button>
       `;
     }
-    return; // Stop execution if no ID
+    return;
   }
 
-  // Fetch the item from storage using the ID and the global focus state
-  // We need to fetch both the specific task AND the 'focus' state
-  chrome.storage.local.get([id, "focusState"], (items) => {
-    // Fetch both keys
-    console.log(`Task id ${id} and focusState retrieved:`, items);
+  // Fetch the task, focus state, AND pomodoro state
+  chrome.storage.local.get([id, "focusState", "pomodoro"], (items) => {
+    console.log(`Task id ${id}, focusState, and pomodoro retrieved:`, items);
 
     const task = items[id];
-    const storedFocusState = items.focusState; // Retrieve the stored focus state
+    const storedFocusState = items.focusState;
+    const storedPomodoroState = items.pomodoro; // This will now include startTime
 
-    // --- IMPORTANT NEW VALIDATION (from previous fix) ---
     if (!task || typeof task.name === "undefined") {
       console.error(
         `Item with ID "${id}" is not a valid task object or does not exist.`,
@@ -50,7 +69,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const { name, description, due_date, priority, subtasks } = task;
     const subtasksPresent = !!subtasks && subtasks.length > 0;
 
-    // Render task details
     if (detailsContainerElement) {
       detailsContainerElement.innerHTML = `
             <h1 class="title">Task Name: ${name || "No Name"}</h1>
@@ -60,7 +78,6 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     }
 
-    // Render options
     if (optionsElement) {
       optionsElement.innerHTML = `
             <div class="btn" id="dueDateBtn">
@@ -76,7 +93,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `;
 
-      // Add event listener for date picker toggle (from previous advice)
       const dueDateBtn = document.getElementById("dueDateBtn");
       const datePicker = document.getElementById("datePicker");
       if (dueDateBtn && datePicker) {
@@ -97,7 +113,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     console.log("subtasks:", subtasks, "subtasksPresent:", subtasksPresent);
 
-    // Render subtasks
     if (subtaskElement) {
       if (subtasksPresent) {
         subtaskElement.innerHTML = `
@@ -194,64 +209,128 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     }
 
+    // --- POMODORO TIMER DISPLAY LOGIC ---
+    let timerInterval = null;
+
+    function formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${minutes.toString().padStart(2, "0")}:${secs
+        .toString()
+        .padStart(2, "0")}`;
+    }
+
+    function updatePomodoroDisplayAndInterval() {
+      chrome.storage.local.get("pomodoro", (result) => {
+        const currentPomodoro = result.pomodoro;
+        const timerValueElement =
+          pomodoroTimerDisplay.querySelector(".timer-value");
+        const timerPhaseElement =
+          pomodoroTimerDisplay.querySelector(".timer-phase");
+
+        // Ensure currentPomodoro and its properties are valid
+        if (
+          currentPomodoro &&
+          currentPomodoro.isRunning &&
+          currentPomodoro.focusedTaskId === id &&
+          typeof currentPomodoro.startTime === "number"
+        ) {
+          const now = Date.now();
+          const currentDuration =
+            currentPomodoro.phase === "work"
+              ? currentPomodoro.workDuration
+              : currentPomodoro.breakDuration;
+          // Use the exact start time to calculate elapsed, then remaining
+          const elapsedSeconds = Math.floor(
+            (now - currentPomodoro.startTime) / 1000
+          );
+          let remaining = Math.max(0, currentDuration - elapsedSeconds);
+
+          timerValueElement.textContent = formatTime(remaining);
+          timerPhaseElement.textContent = `(${
+            currentPomodoro.phase.charAt(0).toUpperCase() +
+            currentPomodoro.phase.slice(1)
+          }ing)`;
+
+          if (remaining <= 0) {
+            console.log(
+              "Time up for current phase in viewTask.js, notifying background script."
+            );
+            chrome.runtime.sendMessage({ type: "checkPomodoroPhase" });
+            if (timerInterval) {
+              clearInterval(timerInterval);
+              timerInterval = null;
+            }
+          } else if (!timerInterval) {
+            // If time > 0 but interval not running, start it
+            timerInterval = setInterval(updatePomodoroDisplayAndInterval, 1000);
+          }
+        } else {
+          // Pomodoro is not running for this task, or state is invalid
+          timerValueElement.textContent = "--:--";
+          timerPhaseElement.textContent =
+            currentPomodoro && currentPomodoro.isRunning
+              ? "(Other Task Focused)"
+              : "(Not Active)";
+          if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+          }
+        }
+      });
+    }
+
+    updatePomodoroDisplayAndInterval();
+
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === "local" && changes.pomodoro) {
+        console.log("Pomodoro state changed in storage, updating UI.");
+        updatePomodoroDisplayAndInterval();
+      }
+    });
+
     // --- FOCUS BUTTON LOGIC ---
     if (focusBtn) {
-      // Set initial button text based on stored focus state
-      // 'focusState' will be an object { active: boolean, id: string }
-      if (
+      const isCurrentlyFocused =
         storedFocusState &&
         storedFocusState.active &&
-        storedFocusState.id === id
-      ) {
+        storedFocusState.id === id;
+      // Also check if pomodoroState exists and startTime is a number
+      const isPomodoroRunningForThisTask =
+        storedPomodoroState &&
+        storedPomodoroState.isRunning &&
+        storedPomodoroState.focusedTaskId === id &&
+        typeof storedPomodoroState.startTime === "number";
+
+      if (isCurrentlyFocused && isPomodoroRunningForThisTask) {
         focusBtn.innerText = "Unfocus";
       } else {
         focusBtn.innerText = "Focus";
       }
 
       focusBtn.addEventListener("click", (e) => {
-        // Toggle focus state and update button text
-        const newFocusActive = focusBtn.innerText === "Focus"; // If it says "Focus", it's about to become active
+        const newFocusActive = focusBtn.innerText === "Focus";
 
         chrome.runtime.sendMessage({
           id,
           name,
           description,
           type: "focus",
-          // Send the desired new active state to background.js
           newActiveState: newFocusActive,
         });
 
-        // Update button text immediately
         focusBtn.innerText = newFocusActive ? "Unfocus" : "Focus";
-
-        // Store the new focus state in chrome.storage.local
-        // The background script will manage its 'focus' object, but viewTask needs to know for its UI
-        chrome.storage.local.set(
-          {
-            focusState: {
-              active: newFocusActive,
-              id: newFocusActive ? id : null, // If unfocusing, set id to null
-              name: newFocusActive ? name : null,
-              description: newFocusActive ? description : null,
-            },
-          },
-          () => {
-            console.log("Focus state saved:", {
-              active: newFocusActive,
-              id: newFocusActive ? id : null,
-            });
-            alert(
-              `${
-                newFocusActive
-                  ? "Focus mode activated"
-                  : "Focus mode deactivated"
-              } for task: "${name}"`
-            );
-          }
-        );
       });
     } else {
       console.warn("Focus button (#focus-btn) not found in viewTask.html");
     }
+
+    window.addEventListener("pagehide", () => {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        console.log("Pomodoro timer interval cleared on pagehide.");
+      }
+    });
   });
 });

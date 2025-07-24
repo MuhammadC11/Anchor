@@ -22,7 +22,12 @@ document.addEventListener("DOMContentLoaded", () => {
       for (const id in items) {
         // --- CRITICAL FILTERING STEP ---
         // Skip the API key AND the focusState, and any other non-task specific data
-        if (id === "apiKey" || id === "focusState") {
+        if (
+          id === "apiKey" ||
+          id === "focusState" ||
+          id === "pomodoroState" ||
+          id === "pomodoro"
+        ) {
           // <-- ADDED 'focusState' HERE
           console.log(`Skipping non-task item: ${id}`);
           continue; // Skip to the next item
