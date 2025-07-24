@@ -121,7 +121,7 @@ function saveSubtasks(id, subtasks) {
 function sendPomodoroNotification(title, message) {
   chrome.notifications.create({
     type: "basic",
-    iconUrl: "../assets/Microsoft-Fluentui-Emoji-Flat-Anchor-Flat.1024.png",
+    iconUrl: "../assets/anchor.png",
     title: title,
     message: message,
     priority: 2,

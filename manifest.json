@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Productivity Extension",
+  "name": "Anchor: A Productivity Extension",
   "version": "1.0",
   "description": "Helps you stay focused with Gemini AI and Pomodoro.",
   "permissions": [
@@ -21,9 +21,15 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_popup": "popup/popup.html"
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+    "16": "assets/anchor.png",
+    "48": "assets/anchor.png",
+    "128": "assets/anchor.png"
+}
     
   },
+  
   "web_accessible_resources": [
     {
       "resources": ["popup/distracted.html"],
