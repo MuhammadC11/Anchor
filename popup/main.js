@@ -2,8 +2,6 @@
 
 document.addEventListener("DOMContentLoaded", () => {
   const taskListElement = document.querySelector(".taskList");
-  // taskNamesElement is causing issues, will be handled by iterating all items
-  // const taskNamesElement = document.querySelector(".taskNames");
 
   // Function to display tasks (now separated for reusability)
   function displayTasks() {
@@ -23,9 +21,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Iterate over all keys in storage
       for (const id in items) {
         // --- CRITICAL FILTERING STEP ---
-        // Skip the API key and any other non-task specific data
-        if (id === "apiKey") {
-          // Make sure "apiKey" is the ONLY key for your API key
+        // Skip the API key AND the focusState, and any other non-task specific data
+        if (id === "apiKey" || id === "focusState") {
+          // <-- ADDED 'focusState' HERE
           console.log(`Skipping non-task item: ${id}`);
           continue; // Skip to the next item
         }
@@ -33,7 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const task = items[id];
 
         // --- VALIDATION: Ensure it's a valid task object ---
-        // A simple check: does it have at least a 'name' and 'description' property?
         if (task && typeof task === "object" && task.name && task.description) {
           tasksFound = true;
           // Append the task to the list
@@ -42,8 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
             `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}" id="task-${id}">
               ${task.name}
             </a>`
-            // You might want to add a delete button next to each task here
-            // <button class="delete-single-task-btn" data-id="${id}">X</button>
           );
         } else {
           console.warn(
@@ -60,38 +55,24 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       }
 
-      // Add event listeners for individual delete buttons if you implement them
-      // taskListElement.querySelectorAll('.delete-single-task-btn').forEach(button => {
-      //   button.addEventListener('click', (e) => {
-      //     e.preventDefault(); // Prevent navigating if it's inside an <a> tag
-      //     const taskIdToDelete = e.target.dataset.id;
-      //     if (confirm(`Are you sure you want to delete task "${items[taskIdToDelete].name}"?`)) {
-      //       chrome.storage.local.remove(taskIdToDelete, () => {
-      //         if (chrome.runtime.lastError) {
-      //           console.error("Error deleting task:", chrome.runtime.lastError);
-      //         } else {
-      //           console.log("Task deleted:", taskIdToDelete);
-      //           displayTasks(); // Re-render the list
-      //         }
-      //       });
-      //     }
-      //   });
-      // });
+      // No changes needed for delete button listeners as they are not in the provided snippet
+      // If you add individual delete buttons in popup.html later, remember to add their listeners here.
     });
   }
 
   // Initial call to display tasks when the popup loads
   displayTasks();
 
-  // --- CRITICAL CHANGE: Refactor clear all button ---
+  // --- Clear all tasks button logic ---
   var clearTasksElement = document.getElementById("clearTasks");
   if (clearTasksElement) {
     clearTasksElement.addEventListener("click", function () {
       if (
         !confirm(
-          "Are you sure you want to clear ALL your tasks? This will NOT delete your API key."
+          "Are you sure you want to clear ALL your tasks? This will NOT delete your API key or focus state."
         )
       ) {
+        // Updated confirmation message
         return; // User cancelled
       }
 
@@ -108,9 +89,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const keysToRemove = [];
         for (let key in items) {
           // --- CRITICAL FILTERING STEP ---
-          // Add key to list ONLY if it's NOT the API key
-          if (key !== "apiKey") {
-            // Ensure this matches the key you use to store the API key
+          // Add key to list ONLY if it's NOT the API key AND NOT the focusState
+          if (key !== "apiKey" && key !== "focusState") {
+            // <-- ADDED 'focusState' HERE
             keysToRemove.push(key);
           }
         }
@@ -121,8 +102,8 @@ document.addEventListener("DOMContentLoaded", () => {
               console.error("Error clearing tasks:", chrome.runtime.lastError);
             } else {
               console.log(
-                `Successfully cleared ${keysToRemove.length} tasks. API key preserved.`
-              );
+                `Successfully cleared ${keysToRemove.length} tasks. API key and focus state preserved.`
+              ); // Updated log message
               displayTasks(); // Re-render the list after clearing
             }
           });

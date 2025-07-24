@@ -1,9 +1,21 @@
-// Focus management object
+// Focus management object - will be initialized from storage on startup
 const focus = {
   active: false,
   id: null,
   name: null,
   description: null,
+};
+
+// Pomodoro Timer State
+// This object will be stored in chrome.storage.local
+const pomodoroState = {
+  isRunning: false,
+  phase: "work", // 'work' or 'break'
+  remainingTime: 0, // In seconds
+  workDuration: 25 * 60, // 25 minutes
+  breakDuration: 5 * 60, // 5 minutes
+  focusedTaskId: null, // The ID of the task currently in focus
+  focusedTaskName: null, // The name of the task currently in focus
 };
 
 // Function to fetch the API key from Chrome storage
@@ -26,7 +38,7 @@ async function generateGeminiResponse(systemPrompt, userContent) {
   let apiKey;
   try {
     console.log("Attempting to retrieve API key...");
-    apiKey = await getApiKey(); // This line waits for the promise to resolve
+    apiKey = await getApiKey();
     console.log(
       "API Key successfully retrieved for API call (first 5 chars):",
       apiKey.substring(0, 5) + "..."
@@ -108,6 +120,63 @@ function saveSubtasks(id, subtasks) {
   });
 }
 
+// Function to save the current focus state to storage
+function saveFocusStateToStorage() {
+  chrome.storage.local.set({ focusState: focus }, () => {
+    if (chrome.runtime.lastError) {
+      console.error(
+        "Error saving focus state to storage:",
+        chrome.runtime.lastError
+      );
+    } else {
+      console.log("Focus state saved to storage:", focus);
+    }
+  });
+}
+
+// Function to load the focus state from storage
+function loadFocusStateFromStorage() {
+  chrome.storage.local.get("focusState", (result) => {
+    if (chrome.runtime.lastError) {
+      console.error(
+        "Error loading focus state from storage:",
+        chrome.runtime.lastError
+      );
+      return;
+    }
+    if (result.focusState) {
+      focus.active = result.focusState.active || false;
+      focus.id = result.focusState.id || null;
+      focus.name = result.focusState.name || null;
+      focus.description = result.focusState.description || null;
+      console.log("Focus state loaded from storage:", focus);
+    } else {
+      console.log("No focus state found in storage. Initializing default.");
+    }
+  });
+}
+
+// --- Event Listeners ---
+
+// Listen for when the extension starts up (browser opened or extension enabled/reloaded)
+chrome.runtime.onStartup.addListener(() => {
+  console.log("Extension starting up. Loading focus state...");
+  loadFocusStateFromStorage();
+});
+
+// Recommended place to set API key on install if not done via options page
+chrome.runtime.onInstalled.addListener(() => {
+  console.log("Extension installed or updated. Loading focus state...");
+  loadFocusStateFromStorage(); // Also load focus state on install/update
+  chrome.storage.local.get("apiKey", (result) => {
+    if (!result.apiKey) {
+      console.warn(
+        "API key not found on install. Please set your Gemini API key in chrome.storage.local using: chrome.storage.local.set({ apiKey: 'YOUR_GEMINI_API_KEY_HERE' });"
+      );
+    }
+  });
+});
+
 // Message handler for incoming requests
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   switch (request.type) {
@@ -124,7 +193,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         .then((res) => {
           console.log("Generated subtasks from API:", res);
 
-          // Parse the generated subtasks
           const subtasks = res
             .split(/\d+\.\s*/)
             .filter((item) => item.trim() !== "")
@@ -143,18 +211,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.error("Error generating or saving new task:", err)
         );
 
-      return true; // Indicate that the response will be sent asynchronously
+      return true;
     }
     case "focus": {
-      const { id, name, description } = request;
+      const { id, name, description, newActiveState } = request; // Expect newActiveState from viewTask.js
 
-      focus.active = !focus.active;
+      // Update the global focus object based on the message
+      focus.active = newActiveState;
+      focus.id = newActiveState ? id : null;
+      focus.name = newActiveState ? name : null;
+      focus.description = newActiveState ? description : null;
 
-      console.log("Focus message received! Focus active:", focus.active);
+      console.log(
+        "Focus message received! Focus active:",
+        focus.active,
+        "Task ID:",
+        focus.id,
+        "Task Name:",
+        focus.name
+      );
 
-      focus.id = id;
-      focus.name = name;
-      focus.description = description;
+      // Save the updated focus state to storage immediately
+      saveFocusStateToStorage();
+
       break;
     }
     default:
@@ -165,7 +244,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 let debounceTimer;
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Only proceed if tab is fully loaded and focus mode is active
   if (changeInfo.status !== "complete" || !focus.active) {
+    return;
+  }
+
+  // Ensure there's a focused task name before proceeding with distraction check
+  if (!focus.name) {
+    console.warn(
+      "Focus mode is active but no task name is set. Skipping distraction check."
+    );
     return;
   }
 
@@ -177,17 +265,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     });
 
     if (!activeTab || activeTab.id !== tabId) {
-      return;
+      return; // Not the currently active tab
     }
 
     const { url, title } = activeTab;
 
-    // Exclude new tabs or empty tabs
-    if (!url || url === "chrome://newtab/") {
-      console.log("Ignoring new tab or empty tab.");
+    // Exclude new tabs, empty tabs, and internal Chrome URLs
+    if (!url || url.startsWith("chrome://") || url.startsWith("about:")) {
+      console.log("Ignoring internal Chrome tab or empty tab:", url);
       return;
     }
 
+    // Prevent redirect loop if already on the distracted page
     if (url === chrome.runtime.getURL("popup/distracted.html")) return;
 
     console.log(
@@ -228,18 +317,5 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       .catch((err) =>
         console.error("Error during distraction detection:", err)
       );
-  }, 1000);
-});
-
-// Recommended place to set API key on install if not done via options page
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get("apiKey", (result) => {
-    if (!result.apiKey) {
-      console.warn(
-        "API key not found on install. Please set your Gemini API key in chrome.storage.local using: chrome.storage.local.set({ apiKey: 'YOUR_GEMINI_API_KEY_HERE' });"
-      );
-      // You could also open an options page here for the user to enter it:
-      // chrome.runtime.openOptionsPage();
-    }
-  });
+  }, 1000); // Debounce for 1 second
 });

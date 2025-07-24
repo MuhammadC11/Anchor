@@ -1,148 +1,254 @@
-const taskListElement = document.querySelector("#task-list");
+const taskListElement = document.querySelector("#task-list"); // This global variable seems unused within DOMContentLoaded
 
 document.addEventListener("DOMContentLoaded", () => {
-  const taskListElement = document.querySelector(".details-container");
+  const detailsContainerElement = document.querySelector(".details-container"); // Corrected variable name
   const optionsElement = document.querySelector(".options-container");
   const subtaskElement = document.querySelector(".subtask-container");
+  const focusBtn = document.querySelector("#focus-btn"); // Get focus button early
 
-  const params = new URLSearchParams(window.location.search); // Get URL parameters
-  const id = params.get("id"); // Get the task ID from the URL parameters
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get("id");
 
-  let subtasksPresent = false; // Flag to check if subtasks are present
+  // --- IMPORTANT NEW VALIDATION (from previous fix) ---
+  if (!id) {
+    console.error("No task ID provided in URL. Cannot display task.");
+    if (detailsContainerElement) {
+      detailsContainerElement.innerHTML = `
+        <h1 style="color: red;">Error: No Task ID Provided</h1>
+        <p>Please navigate from your task list to view a specific task.</p>
+        <button onclick="window.location.href='../popup.html'">Go to Home</button>
+      `;
+    }
+    return; // Stop execution if no ID
+  }
 
-  chrome.storage.local.get(id, (task) => {
-    console.log(`task id ${id} retrieved:`, task); // Log the retrieved task
+  // Fetch the item from storage using the ID and the global focus state
+  // We need to fetch both the specific task AND the 'focus' state
+  chrome.storage.local.get([id, "focusState"], (items) => {
+    // Fetch both keys
+    console.log(`Task id ${id} and focusState retrieved:`, items);
 
-    const { name, description, due_date, priority, subtasks } = task[id]; // Destructure the task object to get its properties
+    const task = items[id];
+    const storedFocusState = items.focusState; // Retrieve the stored focus state
 
-    subtasksPresent = !!subtasks && subtasks.length > 0; // Check if subtasks are present and not empty
+    // --- IMPORTANT NEW VALIDATION (from previous fix) ---
+    if (!task || typeof task.name === "undefined") {
+      console.error(
+        `Item with ID "${id}" is not a valid task object or does not exist.`,
+        task
+      );
+      if (detailsContainerElement) {
+        detailsContainerElement.innerHTML = `
+          <h1 style="color: red;">Error: Task Not Found or Invalid</h1>
+          <p>The task with ID "${id}" could not be loaded. It might be deleted or an invalid ID was provided.</p>
+          <button onclick="window.location.href='../popup.html'">Go to Home</button>
+        `;
+      }
+      return;
+    }
 
-    taskListElement.insertAdjacentHTML(
-      "beforeend",
-      `<div class="details-container">
-        <h1 class="title">Task Name: ${name}</h1>
-        <h2 class="description">Task Description: ${description}</h2>
-      </div>`
-    );
+    const { name, description, due_date, priority, subtasks } = task;
+    const subtasksPresent = !!subtasks && subtasks.length > 0;
 
-    optionsElement.insertAdjacentHTML(
-      "beforeend",
-      `<div class="btn" id="dueDateBtn">
-          <img src="../../assets/calendar-regular.svg" alt="Calendar Icon" />Due date:
-          <div id="datePicker" class="hidden">
-            ${due_date || "Not set"} </div>
-        </div>
+    // Render task details
+    if (detailsContainerElement) {
+      detailsContainerElement.innerHTML = `
+            <h1 class="title">Task Name: ${name || "No Name"}</h1>
+            <h2 class="description">Task Description: ${
+              description || "No Description"
+            }</h2>
+        `;
+    }
 
-        <div class="btn" id="priorityBtn">
-          <img src="../../assets/flag-regular.svg" alt="Flag Icon" />
-          Priority: <span id="priority"> ${priority || "N/A"}</span>
-        </div>`
-    );
+    // Render options
+    if (optionsElement) {
+      optionsElement.innerHTML = `
+            <div class="btn" id="dueDateBtn">
+                <img src="../../assets/calendar-regular.svg" alt="Calendar Icon" />Due date:
+                <div id="datePicker" class="hidden">
+                    ${due_date || "Not set"}
+                </div>
+            </div>
+
+            <div class="btn" id="priorityBtn">
+                <img src="../../assets/flag-regular.svg" alt="Flag Icon" />
+                Priority: <span id="priority"> ${priority || "N/A"}</span>
+            </div>
+        `;
+
+      // Add event listener for date picker toggle (from previous advice)
+      const dueDateBtn = document.getElementById("dueDateBtn");
+      const datePicker = document.getElementById("datePicker");
+      if (dueDateBtn && datePicker) {
+        dueDateBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          datePicker.classList.toggle("hidden");
+        });
+        document.addEventListener("click", (event) => {
+          if (
+            !dueDateBtn.contains(event.target) &&
+            !datePicker.contains(event.target)
+          ) {
+            datePicker.classList.add("hidden");
+          }
+        });
+      }
+    }
 
     console.log("subtasks:", subtasks, "subtasksPresent:", subtasksPresent);
 
-    if (subtasksPresent) {
-      subtaskElement.insertAdjacentHTML(
-        "beforeend",
-        `<h3 class="subtasks-heading">Actionable Subtasks:</h3>
-        <ul class="subtask-list"> ${subtasks // This is an array of objects: [{title: "...", tips: [...]}, ...]
-          .map(
-            (subtaskObject) =>
-              `<li>
-                  <h4 class="subtask-title">${subtaskObject.title}</h4>
-                  <ul class="subtask-tips">
-                    ${subtaskObject.tips // This is the array of tips
-                      .map((tip) => `<li>${tip}</li>`)
+    // Render subtasks
+    if (subtaskElement) {
+      if (subtasksPresent) {
+        subtaskElement.innerHTML = `
+                <h3 class="subtasks-heading">Actionable Subtasks:</h3>
+                <ul class="subtask-list">
+                    ${subtasks
+                      .map(
+                        (subtaskObject) =>
+                          `<li>
+                                    <h4 class="subtask-title">${
+                                      subtaskObject.title || "Untitled Subtask"
+                                    }</h4>
+                                    <ul class="subtask-tips">
+                                        ${
+                                          subtaskObject.tips &&
+                                          subtaskObject.tips.length > 0
+                                            ? subtaskObject.tips
+                                                .map(
+                                                  (tip) =>
+                                                    `<li>${
+                                                      tip || "No tip provided"
+                                                    }</li>`
+                                                )
+                                                .join("")
+                                            : "<li>No tips available.</li>"
+                                        }
+                                    </ul>
+                                </li>`
+                      )
                       .join("")}
-                  </ul>
-                </li>`
-          )
-          .join("")}
-        </ul>`
-      );
-    } else {
-      // listen for when subtasks are added
-      console.log("listening for changes");
+                </ul>
+            `;
+      } else {
+        subtaskElement.innerHTML = `<p class="no-subtasks-message">No subtasks generated yet. AI is working on it, or this task doesn't require breakdown.</p>`;
+        console.log("listening for changes");
 
-      // We need to keep track of the listener to avoid adding it multiple times
-      // and potentially handle specific updates for this task ID.
-      // For simplicity in this example, we'll re-fetch and re-render.
-      // In a more complex app, you might want to specifically update only the subtasks.
+        chrome.storage.onChanged.addListener(function storageChangeListener(
+          changes,
+          namespace
+        ) {
+          if (namespace === "local" && changes[id]) {
+            const storageChange = changes[id];
+            if (
+              storageChange.newValue &&
+              storageChange.newValue.subtasks &&
+              storageChange.newValue.subtasks.length > 0
+            ) {
+              console.log(
+                `Subtasks for id "${id}" were updated. New value:`,
+                storageChange.newValue.subtasks
+              );
 
-      // Remove any existing listener for this specific task ID to prevent duplicates
-      // (This requires careful management if you have many listeners.
-      // A better approach might be to use a single listener that dispatches to specific handlers.)
-      // For now, we'll assume the listener is added once per task view.
+              const newSubtasks = storageChange.newValue.subtasks;
 
-      chrome.storage.onChanged.addListener(function storageChangeListener(
-        changes,
-        namespace
-      ) {
-        if (namespace === "local" && changes[id]) {
-          const storageChange = changes[id];
-          if (
-            storageChange.newValue &&
-            storageChange.newValue.subtasks &&
-            storageChange.newValue.subtasks.length > 0
-          ) {
-            console.log(
-              `Subtasks for id "${id}" were updated. New value:`,
-              storageChange.newValue.subtasks
-            );
-
-            // Fetch the subtasks from the new value directly or from storage
-            // Using newValue directly is more efficient here
-            const newSubtasks = storageChange.newValue.subtasks;
-
-            // Clear existing subtasks before adding new ones if the element exists
-            subtaskElement.innerHTML = ""; // Clear existing content
-
-            subtaskElement.insertAdjacentHTML(
-              "beforeend",
-              `<h3 class="subtasks-heading">Actionable Subtasks:</h3>
-              <ul class="subtask-list">
-                ${newSubtasks
-                  .map(
-                    (subtaskObject) =>
-                      `<li>
-                        <h4 class="subtask-title">${subtaskObject.title}</h4>
-                        <ul class="subtask-tips">
-                          ${subtaskObject.tips
-                            .map((tip) => `<li>${tip}</li>`)
-                            .join("")}
-                        </ul>
-                      </li>`
-                  )
-                  .join("")}
-              </ul>`
-            );
-
-            // Optional: Remove the listener once subtasks are loaded
-            // This prevents it from firing unnecessarily for other changes or if the user leaves this page
-            // chrome.storage.onChanged.removeListener(storageChangeListener);
+              subtaskElement.innerHTML = `
+                            <h3 class="subtasks-heading">Actionable Subtasks:</h3>
+                            <ul class="subtask-list">
+                                ${newSubtasks
+                                  .map(
+                                    (subtaskObject) =>
+                                      `<li>
+                                            <h4 class="subtask-title">${
+                                              subtaskObject.title ||
+                                              "Untitled Subtask"
+                                            }</h4>
+                                            <ul class="subtask-tips">
+                                                ${
+                                                  subtaskObject.tips &&
+                                                  subtaskObject.tips.length > 0
+                                                    ? subtaskObject.tips
+                                                        .map(
+                                                          (tip) =>
+                                                            `<li>${
+                                                              tip ||
+                                                              "No tip provided"
+                                                            }</li>`
+                                                        )
+                                                        .join("")
+                                                    : "<li>No tips available.</li>"
+                                                }
+                                            </ul>
+                                        </li>`
+                                  )
+                                  .join("")}
+                            </ul>
+                        `;
+            }
           }
-        }
-      });
+        });
+      }
+    } else {
+      console.warn(
+        "Subtask container (.subtask-container) not found in viewTask.html"
+      );
     }
 
-    // focus button
-    const focusBtn = document.querySelector("#focus-btn");
+    // --- FOCUS BUTTON LOGIC ---
     if (focusBtn) {
-      // Ensure button exists before adding listener
+      // Set initial button text based on stored focus state
+      // 'focusState' will be an object { active: boolean, id: string }
+      if (
+        storedFocusState &&
+        storedFocusState.active &&
+        storedFocusState.id === id
+      ) {
+        focusBtn.innerText = "Unfocus";
+      } else {
+        focusBtn.innerText = "Focus";
+      }
+
       focusBtn.addEventListener("click", (e) => {
+        // Toggle focus state and update button text
+        const newFocusActive = focusBtn.innerText === "Focus"; // If it says "Focus", it's about to become active
+
         chrome.runtime.sendMessage({
           id,
           name,
           description,
           type: "focus",
+          // Send the desired new active state to background.js
+          newActiveState: newFocusActive,
         });
 
-        // Toggle the button text between "Focus" and "Unfocus"
-        if (focusBtn.innerText === "Focus") {
-          focusBtn.innerText = "Unfocus";
-        } else {
-          focusBtn.innerText = "Focus";
-        }
+        // Update button text immediately
+        focusBtn.innerText = newFocusActive ? "Unfocus" : "Focus";
+
+        // Store the new focus state in chrome.storage.local
+        // The background script will manage its 'focus' object, but viewTask needs to know for its UI
+        chrome.storage.local.set(
+          {
+            focusState: {
+              active: newFocusActive,
+              id: newFocusActive ? id : null, // If unfocusing, set id to null
+              name: newFocusActive ? name : null,
+              description: newFocusActive ? description : null,
+            },
+          },
+          () => {
+            console.log("Focus state saved:", {
+              active: newFocusActive,
+              id: newFocusActive ? id : null,
+            });
+            alert(
+              `${
+                newFocusActive
+                  ? "Focus mode activated"
+                  : "Focus mode deactivated"
+              } for task: "${name}"`
+            );
+          }
+        );
       });
     } else {
       console.warn("Focus button (#focus-btn) not found in viewTask.html");
