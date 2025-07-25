@@ -336,8 +336,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case "newTask": {
       const { id, name, description } = request;
       console.log(`[Task] Generating subtasks for: ${name} | ${description}`);
-      const systemPrompt =
-        "You are an AI assistant that generates actionable subtasks for a given task. Provide a maximum of 3 subtasks. For each subtask, provide 1-3 concise tips. Strictly follow this format and don't deviate from it, dont include any * in your respone. the output should be a numbered list where each subtask is followed by its tips, with tips starting with a hyphen. For example:\n1. Subtask One\n- Tip one\n- Tip two\n2. Subtask Two\n- Tip one.";
+      const systemPrompt = `
+      You are an AI assistant that generates actionable subtasks for a given task. Follow these rules strictly:
+      
+      1. **Output Format**:
+         - Provide a maximum of 3 subtasks.
+         - Each subtask must be followed by 1-3 tips to help the user get started.
+         - Use the following format:
+           1. Subtask One
+           - Tip one
+           - Tip two
+           2. Subtask Two
+           - Tip one
+      
+      2. **Handling Missing or Invalid Input**:
+         - If the user does not provide a description or a task name that is too basic to provude any useful information, respond with: 'Insufficient Information. Please try again.'
+         - If the task name is gibberish or nonsensical, respond with: 'Error: Invalid task name. Please provide a valid task name.'
+      
+      3. **Response Guidelines**:
+         - Do not include any special characters like asterisks (*).
+         - Ensure the response is clear, concise, and strictly follows the specified format.
+         - Do not deviate from the instructions under any circumstances.
+      
+      Generate subtasks and tips based on the task name and description provided by the user.
+      `;
       const userContent = `Task Name: ${name}\nTask Description: ${description}`;
 
       generateGeminiResponse(systemPrompt, userContent)
@@ -374,8 +396,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Start a new Pomodoro cycle for this task
         pomodoroState.isRunning = true;
         pomodoroState.phase = "work";
-        pomodoroState.workDuration = 1 * 60; // Ensure these are set
-        pomodoroState.breakDuration = 1 * 60; // Ensure these are set
+        pomodoroState.workDuration = 2 * 60; // Ensure these are set
+        pomodoroState.breakDuration = 2 * 60; // Ensure these are set
         pomodoroState.remainingTime = pomodoroState.workDuration;
         pomodoroState.focusedTaskId = id;
         pomodoroState.focusedTaskName = name;
