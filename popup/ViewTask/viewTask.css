@@ -15,6 +15,11 @@
   align-self: stretch;
 }
 
+img {
+  width: 25px;
+  height: 25px;
+}
+
 .header {
   margin-top: 0;
   color: #000000;
@@ -151,4 +156,8 @@
   align-items: center;
   padding: 0;
   font-size: 1rem;
+}
+
+#clearTasks {
+  margin: auto;
 }

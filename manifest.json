@@ -1,8 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Hackprinceton2023",
-  "version": "0.1.0",
-  "description": "Our description here",
+  "name": "Anchor: A Productivity Extension",
+  "version": "1.0",
+  "description": "Helps you stay focused with Gemini AI and Pomodoro.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "alarms",        
+    "notifications"  
+  ],
   "content_scripts": [
     {
       "matches": ["https://*/*"],
@@ -10,11 +17,23 @@
       "css": ["assets/global.css"]
     }
   ],
-  "action": {
-    "default_popup": "popup/popup.html"
-  },
-  "permissions": ["tabs", "storage"],
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+    "16": "assets/anchor.png",
+    "48": "assets/anchor.png",
+    "128": "assets/anchor.png"
+}
+    
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["popup/distracted.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

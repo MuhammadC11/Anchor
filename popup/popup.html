@@ -3,42 +3,46 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="main.js"></script>
+    <script src="main.js" defer></script>
     <link rel="stylesheet" href="main.css" />
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Inter&family=Raleway:wght@300&family=Space+Grotesk:wght@300;400;500&display=swap");
     </style>
-    <title>Document</title>
+    <title>Anchor - My Tasks</title>
   </head>
   <body>
     <div class="container">
-      <div class="header-container">
+      <header class="header-container">
         <h3 class="header">Anchor</h3>
         <a href="./popup.html">
           <img
             id="home_icon"
-            src="../assets/Microsoft-Fluentui-Emoji-Flat-Anchor-Flat.1024.png"
-            alt=""
+            src="../assets/anchor.png"
+            alt="Anchor Home Icon"
           />
         </a>
-      </div>
-      <div class="title-container">
-        <h1 class="title">
-          Let's drop the <span style="color: #0a99ff">hook.</span>
-        </h1>
-      </div>
+      </header>
 
-      <div class="taskList"></div>
+      <main>
+        <div class="title-container">
+          <h1 class="title">
+            Let's drop the <span style="color: #0a99ff">hook.</span>
+          </h1>
+        </div>
 
-      <div class="button-container">
-        <a class="link" href="./AddTask/addTask.html">
-          <button class="btn" id="add-task-home">Add a task</button>
-        </a>
-      </div>
+        <div class="taskList"></div>
 
-      <div id="clearTasks">
-        <button class="btn" id="clearTasksBtn">Clear all tasks</button>
-      </div>
+        <div class="button-container">
+          <a class="link" href="./AddTask/addTask.html">
+            <button class="btn" id="add-task-home">Add a task</button>
+          </a>
+        </div>
+        <div class="button-container">
+          <div id="clearTasks">
+            <button class="btn" id="clearTasksBtn">Clear all tasks</button>
+          </div>
+        </div>
+      </main>
     </div>
   </body>
 </html>
