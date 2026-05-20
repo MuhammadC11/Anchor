@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Anchor - Settings</title>
+    <script src="settings.js" defer></script>
+    <link rel="stylesheet" href="../popup/main.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header-container">
+        <h3 class="header">Anchor</h3>
+        <a href="../popup/popup.html">
+          <img id="home_icon" src="../assets/anchor.png" alt="Home" />
+        </a>
+      </div>
+      <main style="padding: 24px; width: 100%">
+        <h2>Pomodoro Settings</h2>
+
+        <label for="workDuration">Work duration (minutes):</label>
+        <input type="number" id="workDuration" min="1" max="120" value="25" />
+
+        <label for="breakDuration">Break duration (minutes):</label>
+        <input type="number" id="breakDuration" min="1" max="60" value="5" />
+
+        <div class="button-container">
+          <button class="btn" id="saveSettings">Save Settings</button>
+        </div>
+        <p id="saveConfirm" style="color: green; display: none">
+          Settings saved!
+        </p>
+      </main>
+    </div>
+  </body>
+</html>

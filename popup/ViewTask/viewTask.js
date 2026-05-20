@@ -341,6 +341,31 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("Focus button (#focus-btn) not found in viewTask.html");
     }
 
+    const deleteBtn = document.querySelector("#delete-btn");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", () => {
+        if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+
+        // If this task has an active Pomodoro, stop it first
+        chrome.storage.local.get("pomodoro", (result) => {
+          const livePomodoro = result.pomodoro;
+          if (livePomodoro && livePomodoro.focusedTaskId === id) {
+            chrome.runtime.sendMessage({
+              id,
+              name,
+              description,
+              type: "focus",
+              newActiveState: false,
+            });
+          }
+
+          chrome.storage.local.remove(id, () => {
+            console.log(`Task ${id} deleted.`);
+            window.location.href = "../popup.html";
+          });
+        });
+      });
+    }
     window.addEventListener("pagehide", () => {
       if (timerInterval) {
         clearInterval(timerInterval);

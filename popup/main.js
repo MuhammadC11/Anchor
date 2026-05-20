@@ -43,12 +43,12 @@ document.addEventListener("DOMContentLoaded", () => {
             "beforeend",
             `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}" id="task-${id}">
               ${task.name}
-            </a>`
+            </a>`,
           );
         } else {
           console.warn(
             `Skipping malformed or non-task item with key: ${id}`,
-            task
+            task,
           );
         }
       }
@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!tasksFound) {
         taskListElement.insertAdjacentHTML(
           "beforeend",
-          '<p class="no-tasks-message">No tasks found. Click "Add Task" to get started!</p>'
+          '<p class="no-tasks-message">No tasks found. Click "Add Task" to get started!</p>',
         );
       }
 
@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
     clearTasksElement.addEventListener("click", function () {
       if (
         !confirm(
-          "Are you sure you want to clear ALL your tasks? This will NOT delete your API key or focus state."
+          "Are you sure you want to clear ALL your tasks? This will NOT delete your API key or focus state.",
         )
       ) {
         // Updated confirmation message
@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (chrome.runtime.lastError) {
           console.error(
             "Error retrieving all items for clearing:",
-            chrome.runtime.lastError
+            chrome.runtime.lastError,
           );
           return;
         }
@@ -95,8 +95,12 @@ document.addEventListener("DOMContentLoaded", () => {
         for (let key in items) {
           // --- CRITICAL FILTERING STEP ---
           // Add key to list ONLY if it's NOT the API key AND NOT the focusState
-          if (key !== "apiKey" && key !== "focusState") {
-            // <-- ADDED 'focusState' HERE
+          if (
+            key !== "apiKey" &&
+            key !== "focusState" &&
+            key !== "pomodoro" &&
+            key !== "pomodoroSettings"
+          ) {
             keysToRemove.push(key);
           }
         }
@@ -107,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
               console.error("Error clearing tasks:", chrome.runtime.lastError);
             } else {
               console.log(
-                `Successfully cleared ${keysToRemove.length} tasks. API key and focus state preserved.`
+                `Successfully cleared ${keysToRemove.length} tasks. API key and focus state preserved.`,
               ); // Updated log message
               displayTasks(); // Re-render the list after clearing
             }

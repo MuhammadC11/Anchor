@@ -361,27 +361,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case "focus": {
       const { id, name, description, newActiveState } = request;
       chrome.alarms.clear("pomodoroTimer");
-      focus.active = newActiveState;
-      focus.id = newActiveState ? id : null;
-      focus.name = newActiveState ? name : null;
-      focus.description = newActiveState ? description : null;
 
       if (newActiveState) {
-        // Start a new Pomodoro cycle for this task
-        pomodoroState.isRunning = true;
-        pomodoroState.phase = "work";
-        pomodoroState.workDuration = 5 * 60; // Ensure these are set
-        pomodoroState.breakDuration = 2 * 60; // Ensure these are set
-        pomodoroState.remainingTime = pomodoroState.workDuration;
-        pomodoroState.focusedTaskId = id;
-        pomodoroState.focusedTaskName = name;
-        pomodoroState.startTime = Date.now(); // Critical: Set startTime when Pomodoro starts
-        savePomodoroState(); // Save immediately to ensure state is consistent before scheduling alarm
-        schedulePomodoroAlarm(pomodoroState.workDuration * 1000);
-        sendPomodoroNotification(
-          "Pomodoro Started!",
-          `Work on "${name}" for ${pomodoroState.workDuration / 60} minutes.`,
-        );
+        // Read user settings before starting
+        chrome.storage.local.get("pomodoroSettings", (result) => {
+          const settings = result.pomodoroSettings || {};
+          pomodoroState.isRunning = true;
+          pomodoroState.phase = "work";
+          pomodoroState.workDuration = settings.workDuration || 25 * 60; // fallback to 25min
+          pomodoroState.breakDuration = settings.breakDuration || 5 * 60; // fallback to 5min
+          pomodoroState.remainingTime = pomodoroState.workDuration;
+          pomodoroState.focusedTaskId = id;
+          pomodoroState.focusedTaskName = name;
+          pomodoroState.startTime = Date.now();
+          focus.active = true;
+          focus.id = id;
+          focus.name = name;
+          focus.description = description;
+          savePomodoroState();
+          saveFocusStateToStorage();
+          schedulePomodoroAlarm(pomodoroState.workDuration * 1000);
+          sendPomodoroNotification(
+            "Pomodoro Started!",
+            `Work on "${name}" for ${pomodoroState.workDuration / 60} minutes.`,
+          );
+        });
+        return true; // keep message channel open for async
       } else {
         // Stop the current Pomodoro
         pomodoroState.isRunning = false;
