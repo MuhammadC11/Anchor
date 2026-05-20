@@ -50,7 +50,7 @@ async function generateGeminiResponse(systemPrompt, userContent) {
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: {
@@ -362,41 +362,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const { id, name, description, newActiveState } = request;
       chrome.alarms.clear("pomodoroTimer");
 
+      // Set focus state SYNCHRONOUSLY first so tabs.onUpdated sees it immediately
+      focus.active = newActiveState;
+      focus.id = newActiveState ? id : null;
+      focus.name = newActiveState ? name : null;
+      focus.description = newActiveState ? description : null;
+      focus.pomodoroRunning = newActiveState ? true : false;
+      saveFocusStateToStorage(); // persist immediately
+
       if (newActiveState) {
-        // Read user settings before starting
         chrome.storage.local.get("pomodoroSettings", (result) => {
           const settings = result.pomodoroSettings || {};
           pomodoroState.isRunning = true;
           pomodoroState.phase = "work";
-          pomodoroState.workDuration = settings.workDuration || 25 * 60; // fallback to 25min
-          pomodoroState.breakDuration = settings.breakDuration || 5 * 60; // fallback to 5min
+          pomodoroState.workDuration = settings.workDuration || 25 * 60;
+          pomodoroState.breakDuration = settings.breakDuration || 5 * 60;
           pomodoroState.remainingTime = pomodoroState.workDuration;
           pomodoroState.focusedTaskId = id;
           pomodoroState.focusedTaskName = name;
           pomodoroState.startTime = Date.now();
-          focus.active = true;
-          focus.id = id;
-          focus.name = name;
-          focus.description = description;
           savePomodoroState();
-          saveFocusStateToStorage();
           schedulePomodoroAlarm(pomodoroState.workDuration * 1000);
           sendPomodoroNotification(
             "Pomodoro Started!",
             `Work on "${name}" for ${pomodoroState.workDuration / 60} minutes.`,
           );
         });
-        return true; // keep message channel open for async
+        return true;
       } else {
-        // Stop the current Pomodoro
         pomodoroState.isRunning = false;
-        pomodoroState.phase = "work"; // Reset phase
-        pomodoroState.remainingTime = 0; // Reset time
+        pomodoroState.phase = "work";
+        pomodoroState.remainingTime = 0;
         pomodoroState.focusedTaskId = null;
         pomodoroState.focusedTaskName = null;
-        pomodoroState.startTime = null; // Critical: Clear startTime when Pomodoro stops
+        pomodoroState.startTime = null;
         chrome.alarms.clear("pomodoroTimer");
-        focus.pomodoroRunning = false;
+        savePomodoroState();
         sendPomodoroNotification(
           "Pomodoro Stopped",
           "Your Pomodoro session has been stopped.",
@@ -404,15 +405,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
 
       saveFocusStateToStorage();
-      savePomodoroState(); // Save updated pomodoro state
-      console.log(
-        "[Focus] Received! Active:",
-        focus.active,
-        "Task ID:",
-        focus.id,
-        "Pomodoro running:",
-        pomodoroState.isRunning,
-      );
+      savePomodoroState();
       break;
     }
 
@@ -484,23 +477,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 let debounceTimer;
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Ensure focus object is fully loaded before checking active state for distraction
-  if (!focus.id && focus.active && !focus.name) {
+  if (changeInfo.status !== "complete") return;
+
+  // Always reload focus state from storage in case service worker restarted
+  await loadFocusStateFromStorage();
+
+  // If focus isn't active or task name is missing, nothing to do
+  if (!focus.active || !focus.name) {
     console.log(
-      "[Distraction] Focus active but ID/Name not yet fully loaded. Waiting.",
-    );
-    return;
-  }
-
-  // Only proceed if tab is fully loaded and focus mode is active
-  if (changeInfo.status !== "complete" || !focus.active) {
-    return;
-  }
-
-  // Ensure there's a focused task name before proceeding
-  if (!focus.name) {
-    console.warn(
-      "[Distraction] Focus mode is active but no task name is set. Skipping check.",
+      "[Distraction] Focus not active or task name missing. Skipping.",
     );
     return;
   }
@@ -512,12 +497,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       lastFocusedWindow: true,
     });
 
-    if (!activeTab || activeTab.id !== tabId) {
-      return;
-    }
+    if (!activeTab || activeTab.id !== tabId) return;
 
     const { url, title } = activeTab;
 
+    // Skip internal browser pages
     const internalChromeUrls = [
       "chrome://",
       "about:",
@@ -527,13 +511,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       "data:",
     ];
     if (!url || internalChromeUrls.some((prefix) => url.startsWith(prefix))) {
-      console.log(
-        "[Distraction] Ignoring internal browser tab or empty tab:",
-        url,
-      );
+      console.log("[Distraction] Ignoring internal browser tab:", url);
       return;
     }
 
+    // Skip the distracted page itself to avoid redirect loops
     if (url === chrome.runtime.getURL("popup/distracted.html")) return;
 
     console.log(
@@ -554,11 +536,22 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     URL: https://mail.google.com, Tab Title: Gmail - Inbox, Topic: Writing an essay
     Output: 1 - Checking email is often a distraction from focused work like writing an essay.
     `;
+
     const userContent = `URL: ${url}, Tab Title: ${title}, Topic: ${focus.name}`;
 
     generateGeminiResponse(systemPrompt, userContent)
       .then((res) => {
         console.log("[Distraction] Check result:", res);
+
+        // Re-check focus is still active before redirecting,
+        // in case user unfocused while the AI was thinking
+        if (!focus.active) {
+          console.log(
+            "[Distraction] Focus deactivated during AI check. Skipping redirect.",
+          );
+          return;
+        }
+
         const isDistracted = res.trim().startsWith("1");
         if (isDistracted) {
           console.log(
