@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (detailsContainerElement) {
     detailsContainerElement.parentNode.insertBefore(
       pomodoroTimerDisplay,
-      detailsContainerElement.nextSibling
+      detailsContainerElement.nextSibling,
     );
   }
 
@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!task || typeof task.name === "undefined") {
       console.error(
         `Item with ID "${id}" is not a valid task object or does not exist.`,
-        task
+        task,
       );
       if (detailsContainerElement) {
         detailsContainerElement.innerHTML = `
@@ -134,13 +134,13 @@ document.addEventListener("DOMContentLoaded", () => {
                                                   (tip) =>
                                                     `<li>${
                                                       tip || "No tip provided"
-                                                    }</li>`
+                                                    }</li>`,
                                                 )
                                                 .join("")
                                             : "<li>No tips available.</li>"
                                         }
                                     </ul>
-                                </li>`
+                                </li>`,
                       )
                       .join("")}
                 </ul>
@@ -149,25 +149,23 @@ document.addEventListener("DOMContentLoaded", () => {
         subtaskElement.innerHTML = `<p class="no-subtasks-message">No subtasks generated yet. AI is working on it, or this task doesn't require breakdown.</p>`;
         console.log("listening for changes");
 
-        chrome.storage.onChanged.addListener(function storageChangeListener(
-          changes,
-          namespace
-        ) {
-          if (namespace === "local" && changes[id]) {
-            const storageChange = changes[id];
-            if (
-              storageChange.newValue &&
-              storageChange.newValue.subtasks &&
-              storageChange.newValue.subtasks.length > 0
-            ) {
-              console.log(
-                `Subtasks for id "${id}" were updated. New value:`,
-                storageChange.newValue.subtasks
-              );
+        chrome.storage.onChanged.addListener(
+          function storageChangeListener(changes, namespace) {
+            if (namespace === "local" && changes[id]) {
+              const storageChange = changes[id];
+              if (
+                storageChange.newValue &&
+                storageChange.newValue.subtasks &&
+                storageChange.newValue.subtasks.length > 0
+              ) {
+                console.log(
+                  `Subtasks for id "${id}" were updated. New value:`,
+                  storageChange.newValue.subtasks,
+                );
 
-              const newSubtasks = storageChange.newValue.subtasks;
+                const newSubtasks = storageChange.newValue.subtasks;
 
-              subtaskElement.innerHTML = `
+                subtaskElement.innerHTML = `
                             <h3 class="subtasks-heading">Actionable Subtasks:</h3>
                             <ul class="subtask-list">
                                 ${newSubtasks
@@ -188,24 +186,26 @@ document.addEventListener("DOMContentLoaded", () => {
                                                             `<li>${
                                                               tip ||
                                                               "No tip provided"
-                                                            }</li>`
+                                                            }</li>`,
                                                         )
                                                         .join("")
                                                     : "<li>No tips available.</li>"
                                                 }
                                             </ul>
-                                        </li>`
+                                        </li>`,
                                   )
                                   .join("")}
                             </ul>
                         `;
+                chrome.storage.onChanged.removeListener(storageChangeListener);
+              }
             }
-          }
-        });
+          },
+        );
       }
     } else {
       console.warn(
-        "Subtask container (.subtask-container) not found in viewTask.html"
+        "Subtask container (.subtask-container) not found in viewTask.html",
       );
     }
 
@@ -242,7 +242,7 @@ document.addEventListener("DOMContentLoaded", () => {
               : currentPomodoro.breakDuration;
           // Use the exact start time to calculate elapsed, then remaining
           const elapsedSeconds = Math.floor(
-            (now - currentPomodoro.startTime) / 1000
+            (now - currentPomodoro.startTime) / 1000,
           );
           let remaining = Math.max(0, currentDuration - elapsedSeconds);
 
@@ -254,7 +254,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           if (remaining <= 0) {
             console.log(
-              "Time up for current phase in viewTask.js, notifying background script."
+              "Time up for current phase in viewTask.js, notifying background script.",
             );
             chrome.runtime.sendMessage({ type: "checkPomodoroPhase" });
             if (timerInterval) {
@@ -283,43 +283,59 @@ document.addEventListener("DOMContentLoaded", () => {
     updatePomodoroDisplayAndInterval();
 
     chrome.storage.onChanged.addListener((changes, namespace) => {
-      if (namespace === "local" && changes.pomodoro) {
-        console.log("Pomodoro state changed in storage, updating UI.");
-        updatePomodoroDisplayAndInterval();
+      if (namespace !== "local") return;
+
+      if (changes.pomodoro) {
+        updatePomodoroDisplayAndInterval(); // handles timer display
+      }
+
+      if (changes.pomodoro || changes.focusState) {
+        chrome.storage.local.get("pomodoro", (result) => {
+          const livePomodoro = result.pomodoro;
+          const pomodoroActiveForThisTask =
+            livePomodoro &&
+            livePomodoro.isRunning &&
+            livePomodoro.focusedTaskId === id;
+          if (focusBtn) {
+            focusBtn.innerText = pomodoroActiveForThisTask
+              ? "Unfocus"
+              : "Focus";
+          }
+        });
       }
     });
-
     // --- FOCUS BUTTON LOGIC ---
     if (focusBtn) {
-      const isCurrentlyFocused =
-        storedFocusState &&
-        storedFocusState.active &&
-        storedFocusState.id === id;
-      // Also check if pomodoroState exists and startTime is a number
-      const isPomodoroRunningForThisTask =
+      const pomodoroActiveOnLoad =
         storedPomodoroState &&
         storedPomodoroState.isRunning &&
-        storedPomodoroState.focusedTaskId === id &&
-        typeof storedPomodoroState.startTime === "number";
+        storedPomodoroState.focusedTaskId === id;
 
-      if (isCurrentlyFocused && isPomodoroRunningForThisTask) {
-        focusBtn.innerText = "Unfocus";
-      } else {
-        focusBtn.innerText = "Focus";
-      }
+      focusBtn.innerText = pomodoroActiveOnLoad ? "Unfocus" : "Focus";
 
       focusBtn.addEventListener("click", (e) => {
-        const newFocusActive = focusBtn.innerText === "Focus";
+        // Read live pomodoro state before deciding what to do
+        chrome.storage.local.get("pomodoro", (result) => {
+          const livePomodoro = result.pomodoro;
 
-        chrome.runtime.sendMessage({
-          id,
-          name,
-          description,
-          type: "focus",
-          newActiveState: newFocusActive,
+          // If pomodoro is running for THIS task (even in break phase), treat as "unfocus"
+          const pomodoroActiveForThisTask =
+            livePomodoro &&
+            livePomodoro.isRunning &&
+            livePomodoro.focusedTaskId === id;
+
+          const newFocusActive = !pomodoroActiveForThisTask;
+
+          chrome.runtime.sendMessage({
+            id,
+            name,
+            description,
+            type: "focus",
+            newActiveState: newFocusActive,
+          });
+
+          focusBtn.innerText = newFocusActive ? "Unfocus" : "Focus";
         });
-
-        focusBtn.innerText = newFocusActive ? "Unfocus" : "Focus";
       });
     } else {
       console.warn("Focus button (#focus-btn) not found in viewTask.html");

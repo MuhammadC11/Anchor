@@ -11,8 +11,8 @@ const pomodoroState = {
   isRunning: false,
   phase: "work", // 'work' or 'break'
   remainingTime: 0, // In seconds (initial default)
-  workDuration: 25 * 60, // 25 minutes (default)
-  breakDuration: 5 * 60, // 5 minutes (default)
+  workDuration: 5 * 60, // 5 minutes (default)
+  breakDuration: 2 * 60, // 2 minutes (default)
   focusedTaskId: null,
   focusedTaskName: null,
   startTime: null, // Critical: Timestamp when the current phase started
@@ -41,7 +41,7 @@ async function generateGeminiResponse(systemPrompt, userContent) {
     apiKey = await getApiKey();
     console.log(
       "[Gemini API] Key retrieved (first 5 chars):",
-      apiKey.substring(0, 5) + "..."
+      apiKey.substring(0, 5) + "...",
     );
   } catch (error) {
     console.error("[Gemini API] Failed to retrieve API key:", error);
@@ -71,7 +71,7 @@ async function generateGeminiResponse(systemPrompt, userContent) {
             maxOutputTokens: 800,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -84,7 +84,7 @@ async function generateGeminiResponse(systemPrompt, userContent) {
           errorData.error
             ? errorData.error.message
             : "No specific error message."
-        }`
+        }`,
       );
     }
 
@@ -142,7 +142,7 @@ function saveFocusStateToStorage() {
     if (chrome.runtime.lastError) {
       console.error(
         "[Storage] Error saving focus state:",
-        chrome.runtime.lastError
+        chrome.runtime.lastError,
       );
     } else {
       console.log("[Storage] Focus state saved:", focus);
@@ -156,7 +156,7 @@ function loadFocusStateFromStorage() {
       if (chrome.runtime.lastError) {
         console.error(
           "[Storage] Error loading focus state:",
-          chrome.runtime.lastError
+          chrome.runtime.lastError,
         );
         resolve(false);
         return;
@@ -178,7 +178,7 @@ function savePomodoroState() {
     if (chrome.runtime.lastError) {
       console.error(
         "[Storage] Error saving Pomodoro state:",
-        chrome.runtime.lastError
+        chrome.runtime.lastError,
       );
     } else {
       console.log("[Storage] Pomodoro state saved:", pomodoroState);
@@ -192,7 +192,7 @@ function loadPomodoroState() {
       if (chrome.runtime.lastError) {
         console.error(
           "[Storage] Error loading Pomodoro state:",
-          chrome.runtime.lastError
+          chrome.runtime.lastError,
         );
         resolve(false);
         return;
@@ -202,50 +202,6 @@ function loadPomodoroState() {
         console.log("[Storage] Pomodoro state loaded:", pomodoroState);
 
         // --- Recalculate remaining time and reschedule alarm on load ---
-        if (
-          pomodoroState.isRunning &&
-          typeof pomodoroState.startTime === "number"
-        ) {
-          const elapsedMs = Date.now() - pomodoroState.startTime;
-          const currentDurationMs =
-            (pomodoroState.phase === "work"
-              ? pomodoroState.workDuration
-              : pomodoroState.breakDuration) * 1000;
-          const remainingMs = currentDurationMs - elapsedMs;
-
-          if (remainingMs > 0) {
-            pomodoroState.remainingTime = Math.ceil(remainingMs / 1000);
-            schedulePomodoroAlarm(remainingMs);
-            console.log(
-              `[Pomodoro] Rescheduled alarm for ${pomodoroState.remainingTime} seconds after load.`
-            );
-          } else {
-            // Time already elapsed, advance phase immediately
-            console.log(
-              "[Pomodoro] Time elapsed during suspension, advancing phase."
-            );
-            advancePomodoroPhase(); // This will save state
-          }
-        } else if (
-          pomodoroState.isRunning &&
-          pomodoroState.startTime === null
-        ) {
-          // Edge case: isRunning is true but startTime is null. Inconsistent state.
-          console.warn(
-            "[Pomodoro] Inconsistent state (running but no startTime). Resetting Pomodoro."
-          );
-          // Reset to a clean stopped state
-          pomodoroState.isRunning = false;
-          pomodoroState.phase = "work";
-          pomodoroState.remainingTime = pomodoroState.workDuration;
-          pomodoroState.focusedTaskId = null;
-          pomodoroState.focusedTaskName = null;
-          pomodoroState.startTime = null;
-          savePomodoroState(); // Save the reset state
-        }
-      } else {
-        console.log("[Storage] No Pomodoro state found. Initializing default.");
-        savePomodoroState(); // Save default if not found
       }
       resolve(true);
     });
@@ -262,7 +218,7 @@ function advancePomodoroPhase() {
       "Pomodoro Complete!",
       `Time for a ${pomodoroState.breakDuration / 60}-minute break. Task: ${
         pomodoroState.focusedTaskName || "N/A"
-      }`
+      }`,
     );
     pomodoroState.phase = "break";
     pomodoroState.remainingTime = pomodoroState.breakDuration;
@@ -273,6 +229,7 @@ function advancePomodoroPhase() {
     focus.active = false; // Turn off distraction during break
     // DO NOT clear focus.id, focus.name, focus.description here
     // as we intend to return to this task after the break.
+    focus.pomodoroRunning = true; // Optional: Flag to indicate we're in a break but still have an active task
     saveFocusStateToStorage();
     console.log("[Focus] Distraction mode deactivated for break.");
   } else {
@@ -282,7 +239,7 @@ function advancePomodoroPhase() {
       "Break Over!",
       `Time to get back to work! Task: ${
         pomodoroState.focusedTaskName || "N/A"
-      }`
+      }`,
     );
     pomodoroState.phase = "work"; // Transition back to work phase
     pomodoroState.remainingTime = pomodoroState.workDuration; // Set for next work cycle
@@ -310,12 +267,25 @@ async function initializeStates() {
   await loadFocusStateFromStorage(); // Wait for focus to load
   await loadPomodoroState(); // Wait for pomodoro to load
   console.log("--- Initialization complete ---");
+  if (pomodoroState.isRunning && typeof pomodoroState.startTime === "number") {
+    const remainingMs =
+      pomodoroState.phase === "work"
+        ? pomodoroState.workDuration * 1000 -
+          (Date.now() - pomodoroState.startTime)
+        : pomodoroState.breakDuration * 1000 -
+          (Date.now() - pomodoroState.startTime);
 
+    if (remainingMs > 0) {
+      schedulePomodoroAlarm(remainingMs);
+    } else {
+      advancePomodoroPhase();
+    }
+  }
   // Optional: Check API key on startup/install
   chrome.storage.local.get("apiKey", (result) => {
     if (!result.apiKey) {
       console.warn(
-        "API key not found. Please set your Gemini API key in chrome.storage.local using: chrome.storage.local.set({ apiKey: 'YOUR_GEMINI_API_KEY_HERE' });"
+        "API key not found. Please set your Gemini API key in chrome.storage.local using: chrome.storage.local.set({ apiKey: 'YOUR_GEMINI_API_KEY_HERE' });",
       );
     }
   });
@@ -326,8 +296,12 @@ chrome.runtime.onInstalled.addListener(initializeStates);
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "pomodoroTimer") {
-    console.log("[Pomodoro] Alarm fired!");
-    advancePomodoroPhase();
+    console.log(
+      "[Pomodoro] Alarm fired! Reloading state from storage first...",
+    );
+    loadPomodoroState().then(() => {
+      advancePomodoroPhase();
+    });
   }
 });
 
@@ -379,14 +353,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           saveSubtasks(id, subtasks);
         })
         .catch((err) =>
-          console.error("[Task] Error generating or saving new task:", err)
+          console.error("[Task] Error generating or saving new task:", err),
         );
       return true;
     }
 
     case "focus": {
       const { id, name, description, newActiveState } = request;
-
+      chrome.alarms.clear("pomodoroTimer");
       focus.active = newActiveState;
       focus.id = newActiveState ? id : null;
       focus.name = newActiveState ? name : null;
@@ -396,16 +370,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Start a new Pomodoro cycle for this task
         pomodoroState.isRunning = true;
         pomodoroState.phase = "work";
-        pomodoroState.workDuration = 2 * 60; // Ensure these are set
+        pomodoroState.workDuration = 5 * 60; // Ensure these are set
         pomodoroState.breakDuration = 2 * 60; // Ensure these are set
         pomodoroState.remainingTime = pomodoroState.workDuration;
         pomodoroState.focusedTaskId = id;
         pomodoroState.focusedTaskName = name;
         pomodoroState.startTime = Date.now(); // Critical: Set startTime when Pomodoro starts
+        savePomodoroState(); // Save immediately to ensure state is consistent before scheduling alarm
         schedulePomodoroAlarm(pomodoroState.workDuration * 1000);
         sendPomodoroNotification(
           "Pomodoro Started!",
-          `Work on "${name}" for ${pomodoroState.workDuration / 60} minutes.`
+          `Work on "${name}" for ${pomodoroState.workDuration / 60} minutes.`,
         );
       } else {
         // Stop the current Pomodoro
@@ -416,9 +391,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         pomodoroState.focusedTaskName = null;
         pomodoroState.startTime = null; // Critical: Clear startTime when Pomodoro stops
         chrome.alarms.clear("pomodoroTimer");
+        focus.pomodoroRunning = false;
         sendPomodoroNotification(
           "Pomodoro Stopped",
-          "Your Pomodoro session has been stopped."
+          "Your Pomodoro session has been stopped.",
         );
       }
 
@@ -430,7 +406,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         "Task ID:",
         focus.id,
         "Pomodoro running:",
-        pomodoroState.isRunning
+        pomodoroState.isRunning,
       );
       break;
     }
@@ -442,7 +418,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         typeof pomodoroState.startTime === "number"
       ) {
         const elapsed = Math.floor(
-          (Date.now() - pomodoroState.startTime) / 1000
+          (Date.now() - pomodoroState.startTime) / 1000,
         );
         const currentDuration =
           pomodoroState.phase === "work"
@@ -465,33 +441,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       savePomodoroState();
       sendPomodoroNotification(
         "Pomodoro Reset",
-        "Your Pomodoro timer has been reset."
+        "Your Pomodoro timer has been reset.",
       );
       sendResponse({ success: true, newState: pomodoroState });
       return true;
     }
 
     case "checkPomodoroPhase": {
-      // This message is a fallback from UI to ensure phase advances if time runs out
-      // and alarm wasn't caught (e.g., service worker was very inactive).
-      if (
-        pomodoroState.isRunning &&
-        typeof pomodoroState.startTime === "number"
-      ) {
-        const elapsed = Math.floor(
-          (Date.now() - pomodoroState.startTime) / 1000
-        );
-        const currentDuration =
-          pomodoroState.phase === "work"
-            ? pomodoroState.workDuration
-            : pomodoroState.breakDuration;
-        if (elapsed >= currentDuration) {
-          console.log("[Pomodoro] checkPomodoroPhase triggered phase advance.");
-          advancePomodoroPhase(); // This will also save state
+      loadPomodoroState().then(() => {
+        if (
+          pomodoroState.isRunning &&
+          typeof pomodoroState.startTime === "number"
+        ) {
+          const elapsed = Math.floor(
+            (Date.now() - pomodoroState.startTime) / 1000,
+          );
+          const currentDuration =
+            pomodoroState.phase === "work"
+              ? pomodoroState.workDuration
+              : pomodoroState.breakDuration;
+          if (elapsed >= currentDuration) {
+            console.log(
+              "[Pomodoro] checkPomodoroPhase triggered phase advance.",
+            );
+            advancePomodoroPhase();
+          }
         }
-      }
-      sendResponse({ success: true, newState: pomodoroState }); // Send current state after check/advance
-      return true;
+        sendResponse({ success: true, newState: pomodoroState });
+      });
+      return true; // Keep message channel open for async sendResponse
     }
     default:
       break;
@@ -504,7 +482,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Ensure focus object is fully loaded before checking active state for distraction
   if (!focus.id && focus.active && !focus.name) {
     console.log(
-      "[Distraction] Focus active but ID/Name not yet fully loaded. Waiting."
+      "[Distraction] Focus active but ID/Name not yet fully loaded. Waiting.",
     );
     return;
   }
@@ -517,7 +495,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Ensure there's a focused task name before proceeding
   if (!focus.name) {
     console.warn(
-      "[Distraction] Focus mode is active but no task name is set. Skipping check."
+      "[Distraction] Focus mode is active but no task name is set. Skipping check.",
     );
     return;
   }
@@ -546,7 +524,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (!url || internalChromeUrls.some((prefix) => url.startsWith(prefix))) {
       console.log(
         "[Distraction] Ignoring internal browser tab or empty tab:",
-        url
+        url,
       );
       return;
     }
@@ -554,7 +532,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (url === chrome.runtime.getURL("popup/distracted.html")) return;
 
     console.log(
-      `[Distraction] Checking: Tab title: ${title} | URL: ${url} | Focus: ${focus.name}`
+      `[Distraction] Checking: Tab title: ${title} | URL: ${url} | Focus: ${focus.name}`,
     );
 
     const systemPrompt = `Given a website URL and/or the tab title, and a user's current task focus, determine if the user is distracted. Return ONLY '1' if distracted and '0' if not distracted, followed by a brief explanation.
@@ -579,7 +557,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         const isDistracted = res.trim().startsWith("1");
         if (isDistracted) {
           console.log(
-            "[Distraction] User detected as distracted. Redirecting..."
+            "[Distraction] User detected as distracted. Redirecting...",
           );
           chrome.tabs.update(tabId, {
             url: chrome.runtime.getURL("popup/distracted.html"),
