@@ -1,6 +1,22 @@
+html,
+body {
+  width: 380px;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 .container {
   display: flex;
-  width: 35rem;
+  width: 100%;
+  min-width: 380px;
+  max-width: 380px;
   flex-direction: column;
   align-items: center;
   border-radius: 5px;
@@ -52,20 +68,22 @@ img {
   align-items: flex-start;
   color: #232323;
   font-family: Inter;
-  font-size: 2rem;
+  font-size: 1.35rem;
   font-style: normal;
   font-weight: 500;
-  line-height: normal;
+  line-height: 1.3;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .description {
   color: #777;
   font-family: Inter;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-style: normal;
   font-weight: 400;
-  line-height: normal;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .split {
@@ -118,6 +136,10 @@ img {
 .button-container {
   display: flex;
   justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .datePicker {
