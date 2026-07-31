@@ -1,4 +1,5 @@
-// Focus management object - will be initialized from storage on startup
+importScripts("shared/utils.js");
+
 const focus = {
   active: false,
   id: null,
@@ -6,19 +7,23 @@ const focus = {
   description: null,
 };
 
-// Pomodoro Timer State
 const pomodoroState = {
   isRunning: false,
-  phase: "work", // 'work' or 'break'
-  remainingTime: 0, // In seconds (initial default)
-  workDuration: 5 * 60, // 5 minutes (default)
-  breakDuration: 2 * 60, // 2 minutes (default)
+  phase: "work",
+  remainingTime: 0,
+  workDuration: 25 * 60,
+  breakDuration: 5 * 60,
   focusedTaskId: null,
   focusedTaskName: null,
-  startTime: null, // Critical: Timestamp when the current phase started
+  startTime: null,
 };
 
-// --- Core Utility Functions (unchanged logic unless specified) ---
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+const distractionCache = new Map();
+const DISTRACTION_CACHE_TTL_MS = 5 * 60 * 1000;
+const DISTRACTION_CACHE_MAX_SIZE = 100;
 
 function getApiKey() {
   return new Promise((resolve, reject) => {
@@ -28,102 +33,67 @@ function getApiKey() {
       } else if (result.apiKey) {
         resolve(result.apiKey);
       } else {
-        reject("API key not found in storage.");
+        reject(new Error("API key not found in storage."));
       }
     });
   });
 }
 
 async function generateGeminiResponse(systemPrompt, userContent) {
-  let apiKey;
-  try {
-    console.log("[Gemini API] Attempting to retrieve API key...");
-    apiKey = await getApiKey();
-    console.log(
-      "[Gemini API] Key retrieved (first 5 chars):",
-      apiKey.substring(0, 5) + "...",
-    );
-  } catch (error) {
-    console.error("[Gemini API] Failed to retrieve API key:", error);
-    throw new Error("API key not available for Gemini API call.");
-  }
+  const apiKey = await getApiKey();
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+  const response = await fetch(GEMINI_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      contents: [
+        { role: "user", parts: [{ text: systemPrompt }] },
+        {
+          role: "model",
+          parts: [{ text: "Understood. Please provide the details." }],
         },
-        body: JSON.stringify({
-          contents: [
-            { role: "user", parts: [{ text: systemPrompt }] },
-            {
-              role: "model",
-              parts: [{ text: "Understood. Please provide the details." }],
-            },
-            { role: "user", parts: [{ text: userContent }] },
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            candidateCount: 1,
-            maxOutputTokens: 800,
-          },
-        }),
+        { role: "user", parts: [{ text: userContent }] },
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        candidateCount: 1,
+        maxOutputTokens: 800,
       },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      `Gemini API error: ${response.status} - ${response.statusText}. ${
+        errorData.error?.message || "No specific error message."
+      }`,
     );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("[Gemini API] Error details:", errorData);
-      throw new Error(
-        `Gemini API error: ${response.status} - ${
-          response.statusText
-        }. Details: ${
-          errorData.error
-            ? errorData.error.message
-            : "No specific error message."
-        }`,
-      );
-    }
-
-    const data = await response.json();
-    console.log("[Gemini API] Response:", data);
-    if (
-      data.candidates &&
-      data.candidates.length > 0 &&
-      data.candidates[0].content &&
-      data.candidates[0].content.parts &&
-      data.candidates[0].content.parts.length > 0
-    ) {
-      return data.candidates[0].content.parts[0].text;
-    } else {
-      throw new Error("Invalid response format from Gemini API.");
-    }
-  } catch (error) {
-    console.error("[Gemini API] Error generating response:", error);
-    throw error;
   }
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error("Invalid response format from Gemini API.");
+  }
+  return text;
 }
 
-function saveSubtasks(id, subtasks) {
-  chrome.storage.local.get(id, (result) => {
-    const oldTask = result[id] || {};
-    const newTask = { ...oldTask, subtasks };
-
-    chrome.storage.local.set({ [id]: newTask }, () => {
-      console.log(`[Storage] Task '${id}' updated:`, newTask);
-    });
+function saveSubtasks(id, subtasks, error = null) {
+  saveTaskSubtasks(id, subtasks, error).catch((err) => {
+    console.error(`[Storage] Failed to update task '${id}':`, err);
   });
 }
 
 function sendPomodoroNotification(title, message) {
   chrome.notifications.create({
     type: "basic",
-    iconUrl: "../assets/anchor.png",
-    title: title,
-    message: message,
+    iconUrl: "assets/anchor.png",
+    title,
+    message,
     priority: 2,
   });
 }
@@ -132,41 +102,19 @@ function schedulePomodoroAlarm(delayInMs) {
   chrome.alarms.create("pomodoroTimer", {
     when: Date.now() + delayInMs,
   });
-  console.log(`[Pomodoro] Alarm scheduled for ${delayInMs / 1000} seconds.`);
 }
 
-// --- State Management Functions ---
-
 function saveFocusStateToStorage() {
-  chrome.storage.local.set({ focusState: focus }, () => {
-    if (chrome.runtime.lastError) {
-      console.error(
-        "[Storage] Error saving focus state:",
-        chrome.runtime.lastError,
-      );
-    } else {
-      console.log("[Storage] Focus state saved:", focus);
-    }
-  });
+  chrome.storage.local.set({ focusState: focus });
 }
 
 function loadFocusStateFromStorage() {
   return new Promise((resolve) => {
     chrome.storage.local.get("focusState", (result) => {
-      if (chrome.runtime.lastError) {
-        console.error(
-          "[Storage] Error loading focus state:",
-          chrome.runtime.lastError,
-        );
-        resolve(false);
-        return;
-      }
       if (result.focusState) {
         Object.assign(focus, result.focusState);
-        console.log("[Storage] Focus state loaded:", focus);
       } else {
-        console.log("[Storage] No focus state found. Initializing default.");
-        saveFocusStateToStorage(); // Save default if not found
+        saveFocusStateToStorage();
       }
       resolve(true);
     });
@@ -174,46 +122,42 @@ function loadFocusStateFromStorage() {
 }
 
 function savePomodoroState() {
-  chrome.storage.local.set({ pomodoro: pomodoroState }, () => {
-    if (chrome.runtime.lastError) {
-      console.error(
-        "[Storage] Error saving Pomodoro state:",
-        chrome.runtime.lastError,
-      );
-    } else {
-      console.log("[Storage] Pomodoro state saved:", pomodoroState);
-    }
-  });
+  chrome.storage.local.set({ pomodoro: pomodoroState });
 }
 
 function loadPomodoroState() {
   return new Promise((resolve) => {
     chrome.storage.local.get("pomodoro", (result) => {
-      if (chrome.runtime.lastError) {
-        console.error(
-          "[Storage] Error loading Pomodoro state:",
-          chrome.runtime.lastError,
-        );
-        resolve(false);
-        return;
-      }
       if (result.pomodoro) {
         Object.assign(pomodoroState, result.pomodoro);
-        console.log("[Storage] Pomodoro state loaded:", pomodoroState);
-
-        // --- Recalculate remaining time and reschedule alarm on load ---
       }
       resolve(true);
     });
   });
 }
 
-// Function to advance the Pomodoro phase
+function getCachedDistraction(url) {
+  const entry = distractionCache.get(url);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > DISTRACTION_CACHE_TTL_MS) {
+    distractionCache.delete(url);
+    return null;
+  }
+  return entry.isDistracted;
+}
+
+function setCachedDistraction(url, isDistracted) {
+  if (distractionCache.size >= DISTRACTION_CACHE_MAX_SIZE) {
+    const oldestKey = distractionCache.keys().next().value;
+    distractionCache.delete(oldestKey);
+  }
+  distractionCache.set(url, { isDistracted, timestamp: Date.now() });
+}
+
 function advancePomodoroPhase() {
   chrome.alarms.clear("pomodoroTimer");
 
   if (pomodoroState.phase === "work") {
-    // End of Work Phase: Transition to Break
     sendPomodoroNotification(
       "Pomodoro Complete!",
       `Time for a ${pomodoroState.breakDuration / 60}-minute break. Task: ${
@@ -222,51 +166,35 @@ function advancePomodoroPhase() {
     );
     pomodoroState.phase = "break";
     pomodoroState.remainingTime = pomodoroState.breakDuration;
-    pomodoroState.startTime = Date.now(); // Critical: Set startTime for the break phase
+    pomodoroState.startTime = Date.now();
     schedulePomodoroAlarm(pomodoroState.breakDuration * 1000);
 
-    // Set focus.active to FALSE during the break
-    focus.active = false; // Turn off distraction during break
-    // DO NOT clear focus.id, focus.name, focus.description here
-    // as we intend to return to this task after the break.
-    focus.pomodoroRunning = true; // Optional: Flag to indicate we're in a break but still have an active task
+    focus.active = false;
+    focus.pomodoroRunning = true;
     saveFocusStateToStorage();
-    console.log("[Focus] Distraction mode deactivated for break.");
   } else {
-    // It's 'break' phase
-    // End of Break Phase: Transition back to Work for the same task
     sendPomodoroNotification(
       "Break Over!",
       `Time to get back to work! Task: ${
         pomodoroState.focusedTaskName || "N/A"
       }`,
     );
-    pomodoroState.phase = "work"; // Transition back to work phase
-    pomodoroState.remainingTime = pomodoroState.workDuration; // Set for next work cycle
-    pomodoroState.startTime = Date.now(); // Critical: Set startTime for the next work phase
-
-    // The Pomodoro is still running for the same task, so don't set isRunning to false yet.
-    // The alarm will be scheduled immediately for the next work period.
+    pomodoroState.phase = "work";
+    pomodoroState.remainingTime = pomodoroState.workDuration;
+    pomodoroState.startTime = Date.now();
     schedulePomodoroAlarm(pomodoroState.workDuration * 1000);
 
-    // Set focus.active to TRUE to re-activate distraction mode for the same task
-    focus.active = true; // Turn on distraction after break
-    // Crucially, focus.id/name/description should still hold the task details from before the break.
-    // So, no need to re-assign them unless they were explicitly cleared.
+    focus.active = true;
     saveFocusStateToStorage();
-    console.log("[Focus] Distraction mode reactivated for next work period.");
   }
-  savePomodoroState(); // Save current pomodoro state
+  savePomodoroState();
 }
 
-// --- Event Listeners ---
-
-// Initialize states on startup or install
 async function initializeStates() {
-  console.log("--- Initializing extension states ---");
-  await loadFocusStateFromStorage(); // Wait for focus to load
-  await loadPomodoroState(); // Wait for pomodoro to load
-  console.log("--- Initialization complete ---");
+  await loadFocusStateFromStorage();
+  await loadPomodoroState();
+  await migrateLegacyTasksIfNeeded();
+
   if (pomodoroState.isRunning && typeof pomodoroState.startTime === "number") {
     const remainingMs =
       pomodoroState.phase === "work"
@@ -281,14 +209,6 @@ async function initializeStates() {
       advancePomodoroPhase();
     }
   }
-  // Optional: Check API key on startup/install
-  chrome.storage.local.get("apiKey", (result) => {
-    if (!result.apiKey) {
-      console.warn(
-        "API key not found. Please set your Gemini API key in chrome.storage.local using: chrome.storage.local.set({ apiKey: 'YOUR_GEMINI_API_KEY_HERE' });",
-      );
-    }
-  });
 }
 
 chrome.runtime.onStartup.addListener(initializeStates);
@@ -296,23 +216,19 @@ chrome.runtime.onInstalled.addListener(initializeStates);
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "pomodoroTimer") {
-    console.log(
-      "[Pomodoro] Alarm fired! Reloading state from storage first...",
-    );
     loadPomodoroState().then(() => {
       advancePomodoroPhase();
     });
   }
 });
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   switch (request.type) {
     case "newTask": {
       const { id, name, description } = request;
-      console.log(`[Task] Generating subtasks for: ${name} | ${description}`);
       const systemPrompt = `
       You are an AI assistant that generates actionable subtasks for a given task. Follow these rules strictly:
-      
+
       1. **Output Format**:
          - Provide a maximum of 3 subtasks.
          - Each subtask must be followed by 1-3 tips to help the user get started.
@@ -322,39 +238,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
            - Tip two
            2. Subtask Two
            - Tip one
-      
+
       2. **Handling Missing or Invalid Input**:
-         - If the user does not provide a description or a task name that is too basic to provude any useful information, respond with: 'Insufficient Information. Please try again.'
+         - If the user does not provide a description or a task name that is too basic to provide any useful information, respond with: 'Insufficient Information. Please try again.'
          - If the task name is gibberish or nonsensical, respond with: 'Error: Invalid task name. Please provide a valid task name.'
-      
+
       3. **Response Guidelines**:
          - Do not include any special characters like asterisks (*).
          - Ensure the response is clear, concise, and strictly follows the specified format.
          - Do not deviate from the instructions under any circumstances.
-      
+
       Generate subtasks and tips based on the task name and description provided by the user.
       `;
       const userContent = `Task Name: ${name}\nTask Description: ${description}`;
 
       generateGeminiResponse(systemPrompt, userContent)
         .then((res) => {
-          console.log("[Gemini API] Generated subtasks:", res);
-          const subtasks = res
-            .split(/\d+\.\s*/)
-            .filter((item) => item.trim() !== "")
-            .map((subtaskText) => {
-              const lines = subtaskText.trim().split("\n");
-              const title = lines[0].trim();
-              const tips = lines
-                .slice(1)
-                .map((tip) => tip.replace(/^- /, "").trim());
-              return { title, tips };
-            });
-          saveSubtasks(id, subtasks);
+          const { subtasks, error } = parseSubtasksFromGeminiResponse(res);
+          if (error) {
+            saveSubtasks(id, [], error);
+          } else {
+            saveSubtasks(id, subtasks);
+          }
         })
-        .catch((err) =>
-          console.error("[Task] Error generating or saving new task:", err),
-        );
+        .catch((err) => {
+          console.error("[Task] Error generating subtasks:", err);
+          saveSubtasks(
+            id,
+            [],
+            err.message ||
+              "Failed to generate subtasks. Check your API key in Settings.",
+          );
+        });
       return true;
     }
 
@@ -362,16 +277,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const { id, name, description, newActiveState } = request;
       chrome.alarms.clear("pomodoroTimer");
 
-      // Set focus state SYNCHRONOUSLY first so tabs.onUpdated sees it immediately
       focus.active = newActiveState;
       focus.id = newActiveState ? id : null;
       focus.name = newActiveState ? name : null;
       focus.description = newActiveState ? description : null;
-      focus.pomodoroRunning = newActiveState ? true : false;
-      saveFocusStateToStorage(); // persist immediately
+      focus.pomodoroRunning = newActiveState;
+      saveFocusStateToStorage();
 
-      if (newActiveState) {
-        chrome.storage.local.get("pomodoroSettings", (result) => {
+      (async () => {
+        if (newActiveState) {
+          const result = await storageGet("pomodoroSettings");
           const settings = result.pomodoroSettings || {};
           pomodoroState.isRunning = true;
           pomodoroState.phase = "work";
@@ -387,30 +302,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             "Pomodoro Started!",
             `Work on "${name}" for ${pomodoroState.workDuration / 60} minutes.`,
           );
-        });
-        return true;
-      } else {
-        pomodoroState.isRunning = false;
-        pomodoroState.phase = "work";
-        pomodoroState.remainingTime = 0;
-        pomodoroState.focusedTaskId = null;
-        pomodoroState.focusedTaskName = null;
-        pomodoroState.startTime = null;
-        chrome.alarms.clear("pomodoroTimer");
-        savePomodoroState();
-        sendPomodoroNotification(
-          "Pomodoro Stopped",
-          "Your Pomodoro session has been stopped.",
-        );
-      }
+        } else {
+          pomodoroState.isRunning = false;
+          pomodoroState.phase = "work";
+          pomodoroState.remainingTime = 0;
+          pomodoroState.focusedTaskId = null;
+          pomodoroState.focusedTaskName = null;
+          pomodoroState.startTime = null;
+          savePomodoroState();
+          sendPomodoroNotification(
+            "Pomodoro Stopped",
+            "Your Pomodoro session has been stopped.",
+          );
+        }
 
-      saveFocusStateToStorage();
-      savePomodoroState();
-      break;
+        sendResponse({ success: true });
+      })().catch((err) => {
+        console.error("[Focus] Failed to update focus state:", err);
+        sendResponse({ success: false, error: err.message });
+      });
+
+      return true;
     }
 
     case "getPomodoroState": {
-      // Recalculate remaining time before sending
       if (
         pomodoroState.isRunning &&
         typeof pomodoroState.startTime === "number"
@@ -434,7 +349,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       pomodoroState.remainingTime = pomodoroState.workDuration;
       pomodoroState.focusedTaskId = null;
       pomodoroState.focusedTaskName = null;
-      pomodoroState.startTime = null; // Critical: Clear startTime on reset
+      pomodoroState.startTime = null;
       chrome.alarms.clear("pomodoroTimer");
       savePomodoroState();
       sendPomodoroNotification(
@@ -459,36 +374,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
               ? pomodoroState.workDuration
               : pomodoroState.breakDuration;
           if (elapsed >= currentDuration) {
-            console.log(
-              "[Pomodoro] checkPomodoroPhase triggered phase advance.",
-            );
             advancePomodoroPhase();
           }
         }
         sendResponse({ success: true, newState: pomodoroState });
       });
-      return true; // Keep message channel open for async sendResponse
+      return true;
     }
+
     default:
       break;
   }
 });
 
 let debounceTimer;
+let focusStateLoaded = false;
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+async function ensureFocusStateLoaded() {
+  if (!focusStateLoaded) {
+    await loadFocusStateFromStorage();
+    focusStateLoaded = true;
+  }
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
   if (changeInfo.status !== "complete") return;
 
-  // Always reload focus state from storage in case service worker restarted
-  await loadFocusStateFromStorage();
+  await ensureFocusStateLoaded();
 
-  // If focus isn't active or task name is missing, nothing to do
-  if (!focus.active || !focus.name) {
-    console.log(
-      "[Distraction] Focus not active or task name missing. Skipping.",
-    );
-    return;
-  }
+  if (!focus.active || !focus.name) return;
 
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
@@ -501,7 +415,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     const { url, title } = activeTab;
 
-    // Skip internal browser pages
     const internalChromeUrls = [
       "chrome://",
       "about:",
@@ -511,19 +424,23 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       "data:",
     ];
     if (!url || internalChromeUrls.some((prefix) => url.startsWith(prefix))) {
-      console.log("[Distraction] Ignoring internal browser tab:", url);
       return;
     }
 
-    // Skip the distracted page itself to avoid redirect loops
     if (url === chrome.runtime.getURL("popup/distracted.html")) return;
 
-    console.log(
-      `[Distraction] Checking: Tab title: ${title} | URL: ${url} | Focus: ${focus.name}`,
-    );
+    const cached = getCachedDistraction(url);
+    if (cached !== null) {
+      if (cached && focus.active) {
+        chrome.tabs.update(tabId, {
+          url: chrome.runtime.getURL("popup/distracted.html"),
+        });
+      }
+      return;
+    }
 
     const systemPrompt = `Given a website URL and/or the tab title, and a user's current task focus, determine if the user is distracted. Return ONLY '1' if distracted and '0' if not distracted, followed by a brief explanation.
-    
+
     Example 1:
     URL: https://www.youtube.com/watch?v=somevideo, Tab Title: Funny Cats - YouTube, Topic: Researching quantum physics
     Output: 1 - The user is watching videos unrelated to quantum physics.
@@ -539,31 +456,30 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
     const userContent = `URL: ${url}, Tab Title: ${title}, Topic: ${focus.name}`;
 
-    generateGeminiResponse(systemPrompt, userContent)
-      .then((res) => {
-        console.log("[Distraction] Check result:", res);
+    try {
+      const res = await generateGeminiResponse(systemPrompt, userContent);
+      if (!focus.active) return;
 
-        // Re-check focus is still active before redirecting,
-        // in case user unfocused while the AI was thinking
-        if (!focus.active) {
-          console.log(
-            "[Distraction] Focus deactivated during AI check. Skipping redirect.",
-          );
-          return;
-        }
+      const isDistracted = res.trim().startsWith("1");
+      setCachedDistraction(url, isDistracted);
 
-        const isDistracted = res.trim().startsWith("1");
-        if (isDistracted) {
-          console.log(
-            "[Distraction] User detected as distracted. Redirecting...",
-          );
-          chrome.tabs.update(tabId, {
-            url: chrome.runtime.getURL("popup/distracted.html"),
-          });
-        } else {
-          console.log("[Distraction] User is not distracted.");
-        }
-      })
-      .catch((err) => console.error("[Distraction] Error during check:", err));
+      if (isDistracted) {
+        chrome.tabs.update(tabId, {
+          url: chrome.runtime.getURL("popup/distracted.html"),
+        });
+      }
+    } catch (err) {
+      console.error("[Distraction] Error during check:", err);
+    }
   }, 1000);
 });
+
+// Reload focus state when it changes so in-memory state stays in sync
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === "local" && changes.focusState) {
+    Object.assign(focus, changes.focusState.newValue || {});
+    focusStateLoaded = true;
+  }
+});
+
+initializeStates();

@@ -123,8 +123,45 @@ a {
   text-decoration: none;
   font-family: "Inter", sans-serif;
   text-align: center;
-
   margin-top: 1rem;
+  color: #0f172a;
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 16px;
+  box-sizing: border-box;
+  gap: 8px;
+  border-bottom: 1px solid #edeff1;
+}
+
+.task-row .taskNames {
+  flex: 1;
+  margin-top: 0;
+  text-align: left;
+  font-size: 1rem;
+  align-items: flex-start;
+}
+
+.task-delete-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.task-delete-btn:hover {
+  background: #fecaca;
 }
 
 .button-container {
@@ -152,4 +189,77 @@ a {
 
 #clearTasks {
   margin: auto;
+}
+
+.hidden {
+  display: none;
+}
+
+.no-tasks-message {
+  text-align: center;
+  color: #64748b;
+  font-family: "Inter", sans-serif;
+  margin: 1rem 0;
+}
+
+.api-key-banner {
+  margin: 0 16px 8px;
+  padding: 10px 12px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 6px;
+  font-family: "Inter", sans-serif;
+  font-size: 0.875rem;
+}
+
+.api-key-banner a {
+  color: #0a99ff;
+}
+
+.settings-container {
+  width: 380px;
+}
+
+.settings-main {
+  padding: 16px 24px 24px;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: "Inter", sans-serif;
+}
+
+.settings-main h2 {
+  font-size: 1.1rem;
+  margin: 20px 0 8px;
+}
+
+.settings-main label {
+  display: block;
+  margin-top: 12px;
+  font-size: 0.875rem;
+}
+
+.settings-main input[type="number"],
+.settings-main input[type="password"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  margin-top: 4px;
+  border: 1px solid #edeff1;
+  border-radius: 4px;
+}
+
+.settings-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0 0 8px;
+}
+
+.settings-hint a {
+  color: #0a99ff;
+}
+
+.save-confirm {
+  color: green;
+  display: none;
+  font-size: 0.875rem;
 }

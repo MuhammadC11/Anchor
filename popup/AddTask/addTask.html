@@ -1,33 +1,38 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="addTask.js"></script>
+    <script src="../../shared/utils.js"></script>
+    <script src="addTask.js" defer></script>
     <link rel="stylesheet" href="addTask.css" />
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Inter&family=Raleway:wght@300&family=Space+Grotesk:wght@300;400&display=swap");
     </style>
-
-    <title>Document</title>
+    <title>Anchor - Add Task</title>
   </head>
   <body>
     <div class="container">
       <div class="header-container">
         <h2 class="header">Anchor</h2>
         <a href="../popup.html">
-          <img id="setting_icon" src="../../assets/../assets/anchor.png" alt=""
-        /></a>
+          <img
+            id="setting_icon"
+            src="../../assets/anchor.png"
+            alt="Back to home"
+          />
+        </a>
       </div>
     </div>
 
     <div class="task-container">
-      <form action="" id="taskForm">
+      <form id="taskForm">
         <input
           type="text"
           name="task_name"
           id="task_name"
           placeholder="Task name"
+          required
         />
 
         <input
@@ -35,30 +40,34 @@
           name="task_description"
           id="task_description"
           placeholder="Description"
+          required
         />
 
         <div class="options-container">
           <div id="dueDateBtn">
-            <img svg="calendar-regular.svg" />Due date
+            <img src="../../assets/calendar-regular.svg" alt="Calendar" />Due
+            date
             <div id="datePicker" class="hidden">
               <input type="date" id="due_date" />
             </div>
           </div>
 
           <div id="priorityBtn">
-            <img svg="flag-regular.svg" />
+            <img src="../../assets/flag-regular.svg" alt="Priority" />
             Priority
             <select name="Priority" id="priority">
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
+              <option value="1">1 - Low</option>
+              <option value="2">2 - Medium</option>
+              <option value="3">3 - High</option>
+              <option value="4">4 - Urgent</option>
             </select>
           </div>
         </div>
 
         <div class="button-container">
-          <button class="btn2" type="submit" id="submit-form">Submit</button>
+          <button class="btn2" type="submit" id="submit-form">
+            Create Task
+          </button>
         </div>
       </form>
     </div>

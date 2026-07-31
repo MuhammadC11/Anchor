@@ -1,5 +1,3 @@
-const taskListElement = document.querySelector("#task-list"); // This global variable seems unused within DOMContentLoaded
-
 document.addEventListener("DOMContentLoaded", () => {
   const detailsContainerElement = document.querySelector(".details-container");
   const optionsElement = document.querySelector(".options-container");
@@ -28,188 +26,172 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  function showError(container, title, message) {
+    container.replaceChildren();
+    const heading = document.createElement("h1");
+    heading.className = "error-heading";
+    heading.textContent = title;
+    const paragraph = document.createElement("p");
+    paragraph.textContent = message;
+    const button = document.createElement("button");
+    button.className = "btn2";
+    button.textContent = "Go to Home";
+    button.addEventListener("click", () => {
+      window.location.href = "../popup.html";
+    });
+    container.appendChild(heading);
+    container.appendChild(paragraph);
+    container.appendChild(button);
+  }
+
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
 
   if (!id) {
-    console.error("No task ID provided in URL. Cannot display task.");
     if (detailsContainerElement) {
-      detailsContainerElement.innerHTML = `
-        <h1 style="color: red;">Error: No Task ID Provided</h1>
-        <p>Please navigate from your task list to view a specific task.</p>
-        <button onclick="window.location.href='../popup.html'">Go to Home</button>
-      `;
+      showError(
+        detailsContainerElement,
+        "Error: No Task ID Provided",
+        "Please navigate from your task list to view a specific task.",
+      );
     }
     return;
   }
 
-  // Fetch the task, focus state, AND pomodoro state
-  chrome.storage.local.get([id, "focusState", "pomodoro"], (items) => {
-    console.log(`Task id ${id}, focusState, and pomodoro retrieved:`, items);
-
-    const task = items[id];
-    const storedFocusState = items.focusState;
-    const storedPomodoroState = items.pomodoro; // This will now include startTime
+  getTaskById(id).then(async (task) => {
+    const { pomodoro: storedPomodoroState } = await storageGet("pomodoro");
 
     if (!task || typeof task.name === "undefined") {
-      console.error(
-        `Item with ID "${id}" is not a valid task object or does not exist.`,
-        task,
-      );
       if (detailsContainerElement) {
-        detailsContainerElement.innerHTML = `
-          <h1 style="color: red;">Error: Task Not Found or Invalid</h1>
-          <p>The task with ID "${id}" could not be loaded. It might be deleted or an invalid ID was provided.</p>
-          <button onclick="window.location.href='../popup.html'">Go to Home</button>
-        `;
+        showError(
+          detailsContainerElement,
+          "Error: Task Not Found",
+          `The task could not be loaded. It may have been deleted.`,
+        );
       }
       return;
     }
 
-    const { name, description, due_date, priority, subtasks } = task;
+    const { name, description, due_date, priority, subtasks, subtaskError } =
+      task;
     const subtasksPresent = !!subtasks && subtasks.length > 0;
 
     if (detailsContainerElement) {
-      detailsContainerElement.innerHTML = `
-            <h1 class="title">Task Name: ${name || "No Name"}</h1>
-            <h2 class="description">Task Description: ${
-              description || "No Description"
-            }</h2>
-        `;
+      detailsContainerElement.replaceChildren();
+
+      const title = document.createElement("h1");
+      title.className = "title";
+      title.textContent = `Task Name: ${name || "No Name"}`;
+
+      const desc = document.createElement("h2");
+      desc.className = "description";
+      desc.textContent = `Task Description: ${description || "No Description"}`;
+
+      detailsContainerElement.appendChild(title);
+      detailsContainerElement.appendChild(desc);
     }
 
     if (optionsElement) {
-      optionsElement.innerHTML = `
-            <div class="btn" id="dueDateBtn">
-                <img src="../../assets/calendar-regular.svg" alt="Calendar Icon" />Due date:
-                <div id="datePicker" class="hidden">
-                    ${due_date || "Not set"}
-                </div>
-            </div>
+      optionsElement.replaceChildren();
 
-            <div class="btn" id="priorityBtn">
-                <img src="../../assets/flag-regular.svg" alt="Flag Icon" />
-                Priority: <span id="priority"> ${priority || "N/A"}</span>
-            </div>
-        `;
+      const dueDateBtn = document.createElement("div");
+      dueDateBtn.className = "btn";
+      dueDateBtn.id = "dueDateBtn";
 
-      const dueDateBtn = document.getElementById("dueDateBtn");
-      const datePicker = document.getElementById("datePicker");
-      if (dueDateBtn && datePicker) {
-        dueDateBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          datePicker.classList.toggle("hidden");
-        });
-        document.addEventListener("click", (event) => {
-          if (
-            !dueDateBtn.contains(event.target) &&
-            !datePicker.contains(event.target)
-          ) {
-            datePicker.classList.add("hidden");
-          }
-        });
-      }
+      const calendarIcon = document.createElement("img");
+      calendarIcon.src = "../../assets/calendar-regular.svg";
+      calendarIcon.alt = "Calendar";
+      dueDateBtn.appendChild(calendarIcon);
+      dueDateBtn.appendChild(document.createTextNode("Due date:"));
+
+      const datePicker = document.createElement("div");
+      datePicker.id = "datePicker";
+      datePicker.className = "hidden";
+      datePicker.textContent = due_date || "Not set";
+      dueDateBtn.appendChild(datePicker);
+
+      const priorityBtn = document.createElement("div");
+      priorityBtn.className = "btn";
+      priorityBtn.id = "priorityBtn";
+
+      const flagIcon = document.createElement("img");
+      flagIcon.src = "../../assets/flag-regular.svg";
+      flagIcon.alt = "Priority";
+      priorityBtn.appendChild(flagIcon);
+      priorityBtn.appendChild(document.createTextNode("Priority: "));
+
+      const prioritySpan = document.createElement("span");
+      prioritySpan.id = "priority";
+      prioritySpan.textContent = String(priority || "N/A");
+      priorityBtn.appendChild(prioritySpan);
+
+      optionsElement.appendChild(dueDateBtn);
+      optionsElement.appendChild(priorityBtn);
+
+      dueDateBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        datePicker.classList.toggle("hidden");
+      });
+      document.addEventListener("click", (event) => {
+        if (
+          !dueDateBtn.contains(event.target) &&
+          !datePicker.contains(event.target)
+        ) {
+          datePicker.classList.add("hidden");
+        }
+      });
     }
 
-    console.log("subtasks:", subtasks, "subtasksPresent:", subtasksPresent);
+    function renderSubtaskSection() {
+      if (!subtaskElement) return;
 
-    if (subtaskElement) {
-      if (subtasksPresent) {
-        subtaskElement.innerHTML = `
-                <h3 class="subtasks-heading">Actionable Subtasks:</h3>
-                <ul class="subtask-list">
-                    ${subtasks
-                      .map(
-                        (subtaskObject) =>
-                          `<li>
-                                    <h4 class="subtask-title">${
-                                      subtaskObject.title || "Untitled Subtask"
-                                    }</h4>
-                                    <ul class="subtask-tips">
-                                        ${
-                                          subtaskObject.tips &&
-                                          subtaskObject.tips.length > 0
-                                            ? subtaskObject.tips
-                                                .map(
-                                                  (tip) =>
-                                                    `<li>${
-                                                      tip || "No tip provided"
-                                                    }</li>`,
-                                                )
-                                                .join("")
-                                            : "<li>No tips available.</li>"
-                                        }
-                                    </ul>
-                                </li>`,
-                      )
-                      .join("")}
-                </ul>
-            `;
-      } else {
-        subtaskElement.innerHTML = `<p class="no-subtasks-message">No subtasks generated yet. AI is working on it, or this task doesn't require breakdown.</p>`;
-        console.log("listening for changes");
-
-        chrome.storage.onChanged.addListener(
-          function storageChangeListener(changes, namespace) {
-            if (namespace === "local" && changes[id]) {
-              const storageChange = changes[id];
-              if (
-                storageChange.newValue &&
-                storageChange.newValue.subtasks &&
-                storageChange.newValue.subtasks.length > 0
-              ) {
-                console.log(
-                  `Subtasks for id "${id}" were updated. New value:`,
-                  storageChange.newValue.subtasks,
-                );
-
-                const newSubtasks = storageChange.newValue.subtasks;
-
-                subtaskElement.innerHTML = `
-                            <h3 class="subtasks-heading">Actionable Subtasks:</h3>
-                            <ul class="subtask-list">
-                                ${newSubtasks
-                                  .map(
-                                    (subtaskObject) =>
-                                      `<li>
-                                            <h4 class="subtask-title">${
-                                              subtaskObject.title ||
-                                              "Untitled Subtask"
-                                            }</h4>
-                                            <ul class="subtask-tips">
-                                                ${
-                                                  subtaskObject.tips &&
-                                                  subtaskObject.tips.length > 0
-                                                    ? subtaskObject.tips
-                                                        .map(
-                                                          (tip) =>
-                                                            `<li>${
-                                                              tip ||
-                                                              "No tip provided"
-                                                            }</li>`,
-                                                        )
-                                                        .join("")
-                                                    : "<li>No tips available.</li>"
-                                                }
-                                            </ul>
-                                        </li>`,
-                                  )
-                                  .join("")}
-                            </ul>
-                        `;
-                chrome.storage.onChanged.removeListener(storageChangeListener);
-              }
-            }
-          },
+      if (subtaskError) {
+        showSubtaskMessage(
+          subtaskElement,
+          subtaskError,
+          "subtask-error-message",
         );
+        return;
       }
-    } else {
-      console.warn(
-        "Subtask container (.subtask-container) not found in viewTask.html",
+
+      if (subtasksPresent) {
+        renderSubtasks(subtaskElement, subtasks);
+        return;
+      }
+
+      showSubtaskMessage(
+        subtaskElement,
+        "Generating subtasks with AI...",
+        "no-subtasks-message",
+      );
+
+      chrome.storage.onChanged.addListener(
+        function storageChangeListener(changes, namespace) {
+          if (namespace !== "local") return;
+
+          const updated = findTaskInStorageChange(changes, id);
+          if (!updated) return;
+
+          if (updated.subtaskError) {
+            showSubtaskMessage(
+              subtaskElement,
+              updated.subtaskError,
+              "subtask-error-message",
+            );
+            chrome.storage.onChanged.removeListener(storageChangeListener);
+            return;
+          }
+
+          if (updated.subtasks && updated.subtasks.length > 0) {
+            renderSubtasks(subtaskElement, updated.subtasks);
+            chrome.storage.onChanged.removeListener(storageChangeListener);
+          }
+        },
       );
     }
 
-    // --- POMODORO TIMER DISPLAY LOGIC ---
+    renderSubtaskSection();
+
     let timerInterval = null;
 
     function formatTime(seconds) {
@@ -228,7 +210,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const timerPhaseElement =
           pomodoroTimerDisplay.querySelector(".timer-phase");
 
-        // Ensure currentPomodoro and its properties are valid
         if (
           currentPomodoro &&
           currentPomodoro.isRunning &&
@@ -240,11 +221,10 @@ document.addEventListener("DOMContentLoaded", () => {
             currentPomodoro.phase === "work"
               ? currentPomodoro.workDuration
               : currentPomodoro.breakDuration;
-          // Use the exact start time to calculate elapsed, then remaining
           const elapsedSeconds = Math.floor(
             (now - currentPomodoro.startTime) / 1000,
           );
-          let remaining = Math.max(0, currentDuration - elapsedSeconds);
+          const remaining = Math.max(0, currentDuration - elapsedSeconds);
 
           timerValueElement.textContent = formatTime(remaining);
           timerPhaseElement.textContent = `(${
@@ -253,20 +233,15 @@ document.addEventListener("DOMContentLoaded", () => {
           }ing)`;
 
           if (remaining <= 0) {
-            console.log(
-              "Time up for current phase in viewTask.js, notifying background script.",
-            );
             chrome.runtime.sendMessage({ type: "checkPomodoroPhase" });
             if (timerInterval) {
               clearInterval(timerInterval);
               timerInterval = null;
             }
           } else if (!timerInterval) {
-            // If time > 0 but interval not running, start it
             timerInterval = setInterval(updatePomodoroDisplayAndInterval, 1000);
           }
         } else {
-          // Pomodoro is not running for this task, or state is invalid
           timerValueElement.textContent = "--:--";
           timerPhaseElement.textContent =
             currentPomodoro && currentPomodoro.isRunning
@@ -286,7 +261,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (namespace !== "local") return;
 
       if (changes.pomodoro) {
-        updatePomodoroDisplayAndInterval(); // handles timer display
+        updatePomodoroDisplayAndInterval();
       }
 
       if (changes.pomodoro || changes.focusState) {
@@ -297,80 +272,67 @@ document.addEventListener("DOMContentLoaded", () => {
             livePomodoro.isRunning &&
             livePomodoro.focusedTaskId === id;
           if (focusBtn) {
-            focusBtn.innerText = pomodoroActiveForThisTask
+            focusBtn.textContent = pomodoroActiveForThisTask
               ? "Unfocus"
               : "Focus";
           }
         });
       }
     });
-    // --- FOCUS BUTTON LOGIC ---
+
     if (focusBtn) {
       const pomodoroActiveOnLoad =
         storedPomodoroState &&
         storedPomodoroState.isRunning &&
         storedPomodoroState.focusedTaskId === id;
 
-      focusBtn.innerText = pomodoroActiveOnLoad ? "Unfocus" : "Focus";
+      focusBtn.textContent = pomodoroActiveOnLoad ? "Unfocus" : "Focus";
 
-      focusBtn.addEventListener("click", (e) => {
-        // Read live pomodoro state before deciding what to do
+      focusBtn.addEventListener("click", () => {
         chrome.storage.local.get("pomodoro", (result) => {
           const livePomodoro = result.pomodoro;
-
-          // If pomodoro is running for THIS task (even in break phase), treat as "unfocus"
           const pomodoroActiveForThisTask =
             livePomodoro &&
             livePomodoro.isRunning &&
             livePomodoro.focusedTaskId === id;
-
           const newFocusActive = !pomodoroActiveForThisTask;
 
-          chrome.runtime.sendMessage({
-            id,
-            name,
-            description,
-            type: "focus",
-            newActiveState: newFocusActive,
-          });
-
-          focusBtn.innerText = newFocusActive ? "Unfocus" : "Focus";
-        });
-      });
-    } else {
-      console.warn("Focus button (#focus-btn) not found in viewTask.html");
-    }
-
-    const deleteBtn = document.querySelector("#delete-btn");
-    if (deleteBtn) {
-      deleteBtn.addEventListener("click", () => {
-        if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
-
-        // If this task has an active Pomodoro, stop it first
-        chrome.storage.local.get("pomodoro", (result) => {
-          const livePomodoro = result.pomodoro;
-          if (livePomodoro && livePomodoro.focusedTaskId === id) {
-            chrome.runtime.sendMessage({
+          chrome.runtime.sendMessage(
+            {
               id,
               name,
               description,
               type: "focus",
-              newActiveState: false,
-            });
-          }
-
-          chrome.storage.local.remove(id, () => {
-            console.log(`Task ${id} deleted.`);
-            window.location.href = "../popup.html";
-          });
+              newActiveState: newFocusActive,
+            },
+            () => {
+              if (chrome.runtime.lastError) {
+                console.error(chrome.runtime.lastError);
+                return;
+              }
+              focusBtn.textContent = newFocusActive ? "Unfocus" : "Focus";
+              updatePomodoroDisplayAndInterval();
+            },
+          );
         });
       });
     }
+
+    const deleteBtn = document.querySelector("#delete-btn");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", async () => {
+        if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+
+        await stopFocusIfTaskActive(task);
+        await deleteTaskById(id);
+        window.location.href = "../popup.html";
+      });
+    }
+
     window.addEventListener("pagehide", () => {
       if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
-        console.log("Pomodoro timer interval cleared on pagehide.");
       }
     });
   });

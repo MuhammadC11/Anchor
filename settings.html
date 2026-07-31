@@ -4,17 +4,32 @@
     <meta charset="UTF-8" />
     <title>Anchor - Settings</title>
     <script src="settings.js" defer></script>
-    <link rel="stylesheet" href="../popup/main.css" />
+    <link rel="stylesheet" href="popup/main.css" />
   </head>
   <body>
-    <div class="container">
+    <div class="container settings-container">
       <div class="header-container">
         <h3 class="header">Anchor</h3>
-        <a href="../popup/popup.html">
-          <img id="home_icon" src="../assets/anchor.png" alt="Home" />
+        <a href="popup/popup.html">
+          <img id="home_icon" src="assets/anchor.png" alt="Home" />
         </a>
       </div>
-      <main style="padding: 24px; width: 100%">
+      <main class="settings-main">
+        <h2>Gemini API Key</h2>
+        <p class="settings-hint">
+          Get a free key from
+          <a href="https://aistudio.google.com/app/apikey" target="_blank"
+            >Google AI Studio</a
+          >. Stored locally in your browser only.
+        </p>
+        <label for="apiKey">API Key</label>
+        <input
+          type="password"
+          id="apiKey"
+          placeholder="AIzaSy..."
+          autocomplete="off"
+        />
+
         <h2>Pomodoro Settings</h2>
 
         <label for="workDuration">Work duration (minutes):</label>
@@ -26,9 +41,7 @@
         <div class="button-container">
           <button class="btn" id="saveSettings">Save Settings</button>
         </div>
-        <p id="saveConfirm" style="color: green; display: none">
-          Settings saved!
-        </p>
+        <p id="saveConfirm" class="save-confirm">Settings saved!</p>
       </main>
     </div>
   </body>

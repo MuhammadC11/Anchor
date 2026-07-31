@@ -3,20 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="viewTask.js"></script>
-    <link rel="stylesheet" href="../ViewTask/viewTask.css" />
+    <script src="../../shared/utils.js"></script>
+    <script src="viewTask.js" defer></script>
+    <link rel="stylesheet" href="viewTask.css" />
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300&family=Raleway:wght@300&family=Space+Grotesk:wght@300;400&display=swap");
     </style>
-    <title>Document</title>
+    <title>Anchor - Task Details</title>
   </head>
   <body>
     <div class="container">
       <div class="header-container">
         <h2 class="header">Anchor</h2>
         <a href="../popup.html">
-          <img id="setting_icon" src="../../assets/../assets/anchor.png" alt=""
-        /></a>
+          <img
+            id="setting_icon"
+            src="../../assets/anchor.png"
+            alt="Back to home"
+          />
+        </a>
       </div>
     </div>
     <div class="split">
@@ -25,7 +30,7 @@
       <div class="subtask-container"></div>
     </div>
     <div class="button-container">
-      <button class="btn2" type="submit" id="focus-btn">Focus</button>
+      <button class="btn2" type="button" id="focus-btn">Focus</button>
       <button class="btn2" id="delete-btn" style="background: #ff4d4d">
         Delete Task
       </button>

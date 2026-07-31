@@ -132,3 +132,17 @@ img {
   width: 100%;
   gap: 0.5rem;
 }
+
+.hidden {
+  display: none;
+}
+
+#task_name,
+#task_description {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid #edeff1;
+  border-radius: 4px;
+  font-family: "Inter", sans-serif;
+}

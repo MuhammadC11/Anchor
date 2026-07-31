@@ -1,126 +1,94 @@
-// This file will only have access to the pop up extensions DOM
-
 document.addEventListener("DOMContentLoaded", () => {
   const taskListElement = document.querySelector(".taskList");
+  const apiKeyBanner = document.getElementById("api-key-banner");
 
-  // Function to display tasks (now separated for reusability)
-  function displayTasks() {
-    if (!taskListElement) {
-      console.error("taskListElement (.taskList) not found in popup.html.");
-      return;
-    }
-
-    taskListElement.innerHTML = ""; // Clear existing tasks before re-rendering
-
-    chrome.storage.local.get(null, (items) => {
-      // Get ALL items from storage
-      console.log("All items retrieved from storage:", items);
-
-      let tasksFound = false;
-
-      // Iterate over all keys in storage
-      for (const id in items) {
-        // --- CRITICAL FILTERING STEP ---
-        // Skip the API key AND the focusState, and any other non-task specific data
-        if (
-          id === "apiKey" ||
-          id === "focusState" ||
-          id === "pomodoroState" ||
-          id === "pomodoro"
-        ) {
-          // <-- ADDED 'focusState' HERE
-          console.log(`Skipping non-task item: ${id}`);
-          continue; // Skip to the next item
-        }
-
-        const task = items[id];
-
-        // --- VALIDATION: Ensure it's a valid task object ---
-        if (task && typeof task === "object" && task.name && task.description) {
-          tasksFound = true;
-          // Append the task to the list
-          taskListElement.insertAdjacentHTML(
-            "beforeend",
-            `<a class="taskNames" href="./ViewTask/viewTask.html?id=${id}" id="task-${id}">
-              ${task.name}
-            </a>`,
-          );
-        } else {
-          console.warn(
-            `Skipping malformed or non-task item with key: ${id}`,
-            task,
-          );
-        }
+  function showApiKeyBannerIfNeeded() {
+    storageGet("apiKey").then((result) => {
+      if (!result.apiKey && apiKeyBanner) {
+        apiKeyBanner.hidden = false;
       }
-
-      if (!tasksFound) {
-        taskListElement.insertAdjacentHTML(
-          "beforeend",
-          '<p class="no-tasks-message">No tasks found. Click "Add Task" to get started!</p>',
-        );
-      }
-
-      // No changes needed for delete button listeners as they are not in the provided snippet
-      // If you add individual delete buttons in popup.html later, remember to add their listeners here.
     });
   }
 
-  // Initial call to display tasks when the popup loads
-  displayTasks();
+  function createTaskRow(task) {
+    const row = document.createElement("div");
+    row.className = "task-row";
 
-  // --- Clear all tasks button logic ---
-  var clearTasksElement = document.getElementById("clearTasks");
+    const link = document.createElement("a");
+    link.className = "taskNames";
+    link.href = `./ViewTask/viewTask.html?id=${encodeURIComponent(task.id)}`;
+    link.id = `task-${task.id}`;
+    link.textContent = task.name;
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "task-delete-btn";
+    deleteBtn.title = "Delete task";
+    deleteBtn.setAttribute("aria-label", `Delete ${task.name}`);
+    deleteBtn.textContent = "×";
+
+    deleteBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (!confirm(`Delete "${task.name}"?`)) return;
+
+      await stopFocusIfTaskActive(task);
+      await deleteTaskById(task.id);
+      displayTasks();
+    });
+
+    row.appendChild(link);
+    row.appendChild(deleteBtn);
+    return row;
+  }
+
+  async function displayTasks() {
+    if (!taskListElement) return;
+
+    taskListElement.replaceChildren();
+    const tasks = await getTasks();
+
+    if (tasks.length === 0) {
+      const message = document.createElement("p");
+      message.className = "no-tasks-message";
+      message.textContent =
+        'No tasks found. Click "Add a task" to get started!';
+      taskListElement.appendChild(message);
+      return;
+    }
+
+    for (const task of tasks) {
+      taskListElement.appendChild(createTaskRow(task));
+    }
+  }
+
+  displayTasks();
+  showApiKeyBannerIfNeeded();
+
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === "local" && changes.tasks) {
+      displayTasks();
+    }
+  });
+
+  const clearTasksElement = document.getElementById("clearTasks");
   if (clearTasksElement) {
-    clearTasksElement.addEventListener("click", function () {
+    clearTasksElement.addEventListener("click", async () => {
       if (
         !confirm(
-          "Are you sure you want to clear ALL your tasks? This will NOT delete your API key or focus state.",
+          "Are you sure you want to clear ALL your tasks? Your API key and settings will be preserved.",
         )
       ) {
-        // Updated confirmation message
-        return; // User cancelled
+        return;
       }
 
-      chrome.storage.local.get(null, (items) => {
-        // Get all items
-        if (chrome.runtime.lastError) {
-          console.error(
-            "Error retrieving all items for clearing:",
-            chrome.runtime.lastError,
-          );
-          return;
-        }
-
-        const keysToRemove = [];
-        for (let key in items) {
-          // --- CRITICAL FILTERING STEP ---
-          // Add key to list ONLY if it's NOT the API key AND NOT the focusState
-          if (
-            key !== "apiKey" &&
-            key !== "focusState" &&
-            key !== "pomodoro" &&
-            key !== "pomodoroSettings"
-          ) {
-            keysToRemove.push(key);
-          }
-        }
-
-        if (keysToRemove.length > 0) {
-          chrome.storage.local.remove(keysToRemove, () => {
-            if (chrome.runtime.lastError) {
-              console.error("Error clearing tasks:", chrome.runtime.lastError);
-            } else {
-              console.log(
-                `Successfully cleared ${keysToRemove.length} tasks. API key and focus state preserved.`,
-              ); // Updated log message
-              displayTasks(); // Re-render the list after clearing
-            }
-          });
-        } else {
-          console.log("No tasks found to clear.");
-          displayTasks(); // Even if no tasks, refresh display
-        }
-      });
+      const tasks = await getTasks();
+      for (const task of tasks) {
+        await stopFocusIfTaskActive(task);
+      }
+      await clearAllTasks();
+      displayTasks();
     });
   }
 });

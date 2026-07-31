@@ -1,34 +1,52 @@
 function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 15); // Generates a unique ID based on current time and random string
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 15);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("taskForm").addEventListener("submit", (e) => {
-    e.preventDefault(); // Prevents the default form submission behavior
+  const dueDateBtn = document.getElementById("dueDateBtn");
+  const datePicker = document.getElementById("datePicker");
 
-    const id = generateId(); // Generates a unique ID for the task
-
-    const name = document.getElementById("task_name").value; // Gets the task name from the input field
-    const description = document.getElementById("task_description").value; // Gets the task description from the input field
-    const due_date = document.getElementById("due_date").value; // Gets the due date from the input field
-    const priority = document.getElementById("priority").value; // Gets the priority from the input field
-    chrome.storage.local.set(
-      {
-        [id]: { name, description, due_date, priority }, // Saves the task to local storage with the generated ID
-      },
-      () => {
-        console.log("task saved to storage", id, name); // Logs confirmation of task saving
+  if (dueDateBtn && datePicker) {
+    dueDateBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      datePicker.classList.toggle("hidden");
+    });
+    document.addEventListener("click", (event) => {
+      if (
+        !dueDateBtn.contains(event.target) &&
+        !datePicker.contains(event.target)
+      ) {
+        datePicker.classList.add("hidden");
       }
-    );
+    });
+  }
 
-    // passes to msg listener in background.js
+  document.getElementById("taskForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const id = generateId();
+    const name = document.getElementById("task_name").value.trim();
+    const description = document
+      .getElementById("task_description")
+      .value.trim();
+    const due_date = document.getElementById("due_date").value;
+    const priority = document.getElementById("priority").value;
+
+    if (!name || !description) {
+      alert("Please enter a task name and description.");
+      return;
+    }
+
+    const task = { id, name, description, due_date, priority, subtasks: [] };
+    await addTask(task);
+
     chrome.runtime.sendMessage({
-      id, // Sends the generated ID
-      name, // Sends the task name
-      description, // Sends the task description
-      type: "newTask", // Indicates the type of message
+      id,
+      name,
+      description,
+      type: "newTask",
     });
 
-    window.location.href = `../ViewTask/viewTask.html?id=${id}`; // Redirects to the view task page with the task ID in the URL
+    window.location.href = `../ViewTask/viewTask.html?id=${encodeURIComponent(id)}`;
   });
 });

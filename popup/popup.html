@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../shared/utils.js"></script>
     <script src="main.js" defer></script>
     <link rel="stylesheet" href="main.css" />
     <style>
@@ -22,8 +23,15 @@
           />
         </a>
 
-        <a href="../settings.html">⚙️</a>
+        <a href="../settings.html" title="Settings">⚙️</a>
       </header>
+
+      <div id="api-key-banner" class="api-key-banner" hidden>
+        <p>
+          Add your Gemini API key in
+          <a href="../settings.html">Settings</a> to enable AI features.
+        </p>
+      </div>
 
       <main>
         <div class="title-container">
