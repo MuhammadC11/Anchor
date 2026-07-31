@@ -12,10 +12,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("random-sentence").textContent =
     QUIPS[Math.floor(Math.random() * QUIPS.length)];
 
+  const params = new URLSearchParams(window.location.search);
+  const blockedUrl = params.get("blocked");
+
   chrome.storage.local.get("focusState", (result) => {
     const focus = result.focusState;
     const taskNameEl = document.getElementById("task-name");
     const viewTaskBtn = document.getElementById("view-task-btn");
+    const allowOnceBtn = document.getElementById("allow-once-btn");
 
     if (focus?.name) {
       taskNameEl.textContent = `You were working on: ${focus.name}`;
@@ -31,13 +35,21 @@ document.addEventListener("DOMContentLoaded", () => {
         );
       });
     }
+
+    if (blockedUrl) {
+      allowOnceBtn.hidden = false;
+      allowOnceBtn.addEventListener("click", () => {
+        chrome.runtime.sendMessage(
+          { type: "allowDistractionOnce", url: blockedUrl },
+          () => {
+            window.location.href = blockedUrl;
+          },
+        );
+      });
+    }
   });
 
-  document.getElementById("resume-btn").addEventListener("click", () => {
-    if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.close();
-    }
+  document.getElementById("new-tab-btn").addEventListener("click", () => {
+    chrome.tabs.create({ url: "chrome://newtab" });
   });
 });

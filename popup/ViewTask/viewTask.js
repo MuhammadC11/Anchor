@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const prioritySpan = document.createElement("span");
       prioritySpan.id = "priority";
-      prioritySpan.textContent = String(priority || "N/A");
+      prioritySpan.textContent = getPriorityLabel(priority);
       priorityBtn.appendChild(prioritySpan);
 
       optionsElement.appendChild(dueDateBtn);
@@ -142,15 +142,63 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
+    let subtaskChangeListener = null;
+
+    function stopListeningForSubtaskUpdates() {
+      if (subtaskChangeListener) {
+        chrome.storage.onChanged.removeListener(subtaskChangeListener);
+        subtaskChangeListener = null;
+      }
+    }
+
+    function listenForSubtaskUpdates() {
+      stopListeningForSubtaskUpdates();
+
+      subtaskChangeListener = function storageChangeListener(changes, namespace) {
+        if (namespace !== "local") return;
+
+        const updated = findTaskInStorageChange(changes, id);
+        if (!updated) return;
+
+        if (updated.subtaskError) {
+          showSubtaskErrorWithRetry(
+            subtaskElement,
+            updated.subtaskError,
+            retrySubtasks,
+          );
+          stopListeningForSubtaskUpdates();
+          return;
+        }
+
+        if (updated.subtasks && updated.subtasks.length > 0) {
+          renderSubtasks(subtaskElement, updated.subtasks);
+          stopListeningForSubtaskUpdates();
+        }
+      };
+
+      chrome.storage.onChanged.addListener(subtaskChangeListener);
+    }
+
+    function retrySubtasks() {
+      showSubtaskMessage(
+        subtaskElement,
+        "Generating subtasks with AI...",
+        "no-subtasks-message",
+      );
+      chrome.runtime.sendMessage({
+        id,
+        name,
+        description,
+        type: "retrySubtasks",
+      });
+      listenForSubtaskUpdates();
+    }
+
     function renderSubtaskSection() {
       if (!subtaskElement) return;
 
       if (subtaskError) {
-        showSubtaskMessage(
-          subtaskElement,
-          subtaskError,
-          "subtask-error-message",
-        );
+        showSubtaskErrorWithRetry(subtaskElement, subtaskError, retrySubtasks);
         return;
       }
 
@@ -164,30 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "Generating subtasks with AI...",
         "no-subtasks-message",
       );
-
-      chrome.storage.onChanged.addListener(
-        function storageChangeListener(changes, namespace) {
-          if (namespace !== "local") return;
-
-          const updated = findTaskInStorageChange(changes, id);
-          if (!updated) return;
-
-          if (updated.subtaskError) {
-            showSubtaskMessage(
-              subtaskElement,
-              updated.subtaskError,
-              "subtask-error-message",
-            );
-            chrome.storage.onChanged.removeListener(storageChangeListener);
-            return;
-          }
-
-          if (updated.subtasks && updated.subtasks.length > 0) {
-            renderSubtasks(subtaskElement, updated.subtasks);
-            chrome.storage.onChanged.removeListener(storageChangeListener);
-          }
-        },
-      );
+      listenForSubtaskUpdates();
     }
 
     renderSubtaskSection();
@@ -287,8 +312,13 @@ document.addEventListener("DOMContentLoaded", () => {
         storedPomodoroState.focusedTaskId === id;
 
       focusBtn.textContent = pomodoroActiveOnLoad ? "Unfocus" : "Focus";
+      let focusPending = false;
 
       focusBtn.addEventListener("click", () => {
+        if (focusPending) return;
+        focusPending = true;
+        focusBtn.disabled = true;
+
         chrome.storage.local.get("pomodoro", (result) => {
           const livePomodoro = result.pomodoro;
           const pomodoroActiveForThisTask =
@@ -306,6 +336,8 @@ document.addEventListener("DOMContentLoaded", () => {
               newActiveState: newFocusActive,
             },
             () => {
+              focusPending = false;
+              focusBtn.disabled = false;
               if (chrome.runtime.lastError) {
                 console.error(chrome.runtime.lastError);
                 return;

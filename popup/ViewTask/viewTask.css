@@ -172,6 +172,17 @@ img {
   font-size: 0.95rem;
 }
 
+.retry-subtasks-btn {
+  margin-top: 8px;
+  width: auto;
+  min-width: 140px;
+}
+
+#focus-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .no-subtasks-message {
   color: #64748b;
   font-family: Inter, sans-serif;

@@ -30,7 +30,7 @@ Anchor is a Chrome Extension designed to help you stay focused and productive by
 
 ## Introduction
 
-Anchor helps you anchor your focus! It integrates with Google's Gemini 2.5 Flash API to intelligently break down your tasks into manageable subtasks. Beyond task management, it features a Pomodoro timer for structured work sessions and a distraction detection system that gently nudges you back to your task if you wander off.
+Anchor helps you anchor your focus! It integrates with Google's Gemini 3.6 Flash API to intelligently break down your tasks into manageable subtasks. Beyond task management, it features a Pomodoro timer for structured work sessions and a distraction detection system that gently nudges you back to your task if you wander off.
 
 ---
 

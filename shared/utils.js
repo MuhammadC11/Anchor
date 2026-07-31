@@ -1,15 +1,23 @@
 /** Shared helpers for popup pages and the service worker (via importScripts). */
 
 const TASKS_STORAGE_KEY = "tasks";
+const TASKS_MIGRATED_KEY = "tasksMigrated";
 
 const STORAGE_RESERVED_KEYS = new Set([
   TASKS_STORAGE_KEY,
+  TASKS_MIGRATED_KEY,
   "apiKey",
   "focusState",
   "pomodoro",
   "pomodoroSettings",
-  "pomodoroState",
 ]);
+
+const PRIORITY_LABELS = {
+  1: "1 - Low",
+  2: "2 - Medium",
+  3: "3 - High",
+  4: "4 - Urgent",
+};
 
 function isReservedStorageKey(key) {
   return STORAGE_RESERVED_KEYS.has(key);
@@ -56,8 +64,8 @@ function isLegacyTaskEntry(key, value) {
     !isReservedStorageKey(key) &&
     value &&
     typeof value === "object" &&
-    value.name &&
-    value.description
+    typeof value.name === "string" &&
+    value.name.length > 0
   );
 }
 
@@ -65,12 +73,16 @@ function normalizeTaskRecord(task) {
   return {
     id: task.id,
     name: task.name,
-    description: task.description,
+    description: task.description || "",
     due_date: task.due_date || "",
     priority: task.priority || "1",
-    subtasks: task.subtasks || [],
+    subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
     ...(task.subtaskError ? { subtaskError: task.subtaskError } : {}),
   };
+}
+
+function getPriorityLabel(priority) {
+  return PRIORITY_LABELS[String(priority)] || String(priority || "N/A");
 }
 
 async function migrateLegacyTasksIfNeeded() {
@@ -79,10 +91,16 @@ async function migrateLegacyTasksIfNeeded() {
   const legacyTasks = [];
 
   for (const key of Object.keys(all)) {
-    if (key === TASKS_STORAGE_KEY) continue;
+    if (key === TASKS_STORAGE_KEY || key === TASKS_MIGRATED_KEY) continue;
     if (isLegacyTaskEntry(key, all[key])) {
       legacyKeys.push(key);
-      legacyTasks.push(normalizeTaskRecord({ id: key, ...all[key] }));
+      legacyTasks.push(
+        normalizeTaskRecord({
+          id: key,
+          description: all[key].description || "",
+          ...all[key],
+        }),
+      );
     }
   }
 
@@ -95,14 +113,24 @@ async function migrateLegacyTasksIfNeeded() {
           merged.push(task);
         }
       }
-      await storageSet({ tasks: merged });
+      await storageSet({ tasks: merged, [TASKS_MIGRATED_KEY]: true });
       await storageRemove(legacyKeys);
       return merged;
+    }
+    if (!all[TASKS_MIGRATED_KEY]) {
+      await storageSet({ [TASKS_MIGRATED_KEY]: true });
     }
     return all.tasks;
   }
 
-  await storageSet({ tasks: legacyTasks });
+  // Corrupted or missing tasks array — recover from legacy keys only
+  if (all.tasks != null && !Array.isArray(all.tasks)) {
+    console.warn(
+      "[Storage] Corrupted tasks value; recovering from legacy keys if any.",
+    );
+  }
+
+  await storageSet({ tasks: legacyTasks, [TASKS_MIGRATED_KEY]: true });
   if (legacyKeys.length > 0) {
     await storageRemove(legacyKeys);
   }
@@ -110,6 +138,10 @@ async function migrateLegacyTasksIfNeeded() {
 }
 
 async function getTasks() {
+  const result = await storageGet([TASKS_STORAGE_KEY, TASKS_MIGRATED_KEY]);
+  if (Array.isArray(result.tasks) && result[TASKS_MIGRATED_KEY]) {
+    return result.tasks;
+  }
   return migrateLegacyTasksIfNeeded();
 }
 
@@ -118,25 +150,40 @@ async function getTaskById(id) {
   return tasks.find((task) => task.id === id) || null;
 }
 
+// Serialize task writes to avoid lost updates from concurrent read-modify-write
+let taskWriteQueue = Promise.resolve();
+
+function enqueueTaskWrite(operation) {
+  const run = taskWriteQueue.then(operation, operation);
+  taskWriteQueue = run.catch((err) => {
+    console.error("[Storage] Task write failed:", err);
+  });
+  return run;
+}
+
 async function addTask(task) {
-  const tasks = await getTasks();
-  tasks.push(normalizeTaskRecord(task));
-  await storageSet({ tasks });
+  return enqueueTaskWrite(async () => {
+    const tasks = await getTasks();
+    tasks.push(normalizeTaskRecord(task));
+    await storageSet({ tasks, [TASKS_MIGRATED_KEY]: true });
+  });
 }
 
 async function updateTask(id, updates) {
-  const tasks = await getTasks();
-  const index = tasks.findIndex((task) => task.id === id);
-  if (index === -1) return false;
+  return enqueueTaskWrite(async () => {
+    const tasks = await getTasks();
+    const index = tasks.findIndex((task) => task.id === id);
+    if (index === -1) return false;
 
-  const merged = { ...tasks[index], ...updates, id };
-  if (updates.subtaskError === null) {
-    delete merged.subtaskError;
-  }
+    const merged = { ...tasks[index], ...updates, id };
+    if (updates.subtaskError === null) {
+      delete merged.subtaskError;
+    }
 
-  tasks[index] = normalizeTaskRecord(merged);
-  await storageSet({ tasks });
-  return true;
+    tasks[index] = normalizeTaskRecord(merged);
+    await storageSet({ tasks, [TASKS_MIGRATED_KEY]: true });
+    return true;
+  });
 }
 
 async function saveTaskSubtasks(id, subtasks, error = null) {
@@ -147,22 +194,19 @@ async function saveTaskSubtasks(id, subtasks, error = null) {
 }
 
 async function deleteTaskById(id) {
-  const tasks = await getTasks();
-  await storageSet({ tasks: tasks.filter((task) => task.id !== id) });
+  return enqueueTaskWrite(async () => {
+    const tasks = await getTasks();
+    await storageSet({
+      tasks: tasks.filter((task) => task.id !== id),
+      [TASKS_MIGRATED_KEY]: true,
+    });
+  });
 }
 
 async function clearAllTasks() {
-  await storageSet({ tasks: [] });
-}
-
-function escapeHtml(text) {
-  if (text == null) return "";
-  return String(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return enqueueTaskWrite(async () => {
+    await storageSet({ tasks: [], [TASKS_MIGRATED_KEY]: true });
+  });
 }
 
 function parseSubtasksFromGeminiResponse(res) {
@@ -249,6 +293,23 @@ function showSubtaskMessage(
   paragraph.className = className;
   paragraph.textContent = message;
   container.appendChild(paragraph);
+}
+
+function showSubtaskErrorWithRetry(container, message, onRetry) {
+  if (!container) return;
+  container.replaceChildren();
+
+  const paragraph = document.createElement("p");
+  paragraph.className = "subtask-error-message";
+  paragraph.textContent = message;
+  container.appendChild(paragraph);
+
+  const retryBtn = document.createElement("button");
+  retryBtn.type = "button";
+  retryBtn.className = "btn2 retry-subtasks-btn";
+  retryBtn.textContent = "Retry AI breakdown";
+  retryBtn.addEventListener("click", onRetry);
+  container.appendChild(retryBtn);
 }
 
 function findTaskInStorageChange(changes, taskId) {

@@ -20,8 +20,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const breakMins = parseInt(breakInput.value, 10);
     const apiKey = apiKeyInput.value.trim();
 
-    if (isNaN(workMins) || isNaN(breakMins) || workMins < 1 || breakMins < 1) {
-      alert("Please enter valid Pomodoro durations (at least 1 minute each).");
+    if (
+      isNaN(workMins) ||
+      isNaN(breakMins) ||
+      workMins < 1 ||
+      workMins > 120 ||
+      breakMins < 1 ||
+      breakMins > 60
+    ) {
+      alert(
+        "Please enter valid Pomodoro durations (work 1–120 min, break 1–60 min).",
+      );
       return;
     }
 

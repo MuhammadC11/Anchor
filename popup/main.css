@@ -82,13 +82,16 @@ a {
   align-self: stretch;
 }
 
-*,
-*:focus,
-*:hover {
-  outline: none;
+.btn:focus-visible,
+.link-btn:focus-visible,
+.settings-link:focus-visible,
+.task-delete-btn:focus-visible {
+  outline: 2px solid #0a99ff;
+  outline-offset: 2px;
 }
 
-.btn {
+.btn,
+.link-btn {
   display: flex;
   width: 310px;
   height: 40px;
@@ -100,17 +103,19 @@ a {
   border-radius: 5px;
   background: #0a99ff;
   border: 1px solid #edeff1;
-}
-
-.link {
-  margin: auto;
-  text-decoration: none;
   color: white;
   font-family: "Inter", sans-serif;
-  font-size: 1.5rem;
-  font-style: normal;
+  font-size: 1.1rem;
   font-weight: 600;
-  line-height: normal;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.settings-link {
+  color: #0f172a;
+  font-family: "Inter", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .taskNames {

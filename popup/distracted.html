@@ -53,14 +53,21 @@
         font-weight: 600;
       }
 
-      #resume-btn {
+      #view-task-btn {
         background: #0a99ff;
         color: white;
       }
 
-      #view-task-btn {
+      #new-tab-btn {
         background: #edeff1;
         color: #0f172a;
+      }
+
+      #allow-once-btn {
+        background: transparent;
+        color: #64748b;
+        text-decoration: underline;
+        font-weight: 500;
       }
     </style>
   </head>
@@ -69,8 +76,11 @@
       <div id="random-sentence"></div>
       <p id="task-name"></p>
       <div class="actions">
-        <button id="resume-btn">Go back</button>
-        <button id="view-task-btn" hidden>View my task</button>
+        <button id="view-task-btn" type="button" hidden>View my task</button>
+        <button id="new-tab-btn" type="button">Open a new tab</button>
+        <button id="allow-once-btn" type="button" hidden>
+          Allow this site once
+        </button>
       </div>
     </div>
     <script src="distracted.js"></script>

@@ -18,12 +18,32 @@ const pomodoroState = {
   startTime: null,
 };
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-3.6-flash";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const distractionCache = new Map();
+const inFlightDistractionChecks = new Map();
 const DISTRACTION_CACHE_TTL_MS = 5 * 60 * 1000;
 const DISTRACTION_CACHE_MAX_SIZE = 100;
+
+const SKIP_URL_PREFIXES = [
+  "chrome://",
+  "chrome-extension://",
+  "about:",
+  "edge://",
+  "brave://",
+  "file:///",
+  "data:",
+  "devtools://",
+  "http://localhost",
+  "https://localhost",
+  "http://127.0.0.1",
+  "https://127.0.0.1",
+];
+
+let initPromise = null;
+let focusStateLoaded = false;
+let debounceTimer = null;
 
 function getApiKey() {
   return new Promise((resolve, reject) => {
@@ -39,9 +59,15 @@ function getApiKey() {
   });
 }
 
-async function generateGeminiResponse(systemPrompt, userContent) {
+async function generateGeminiResponse(
+  systemPrompt,
+  userContent,
+  { maxOutputTokens = 800 } = {},
+) {
   const apiKey = await getApiKey();
 
+  // Gemini 3.6: use system_instruction, no prefilled model turns,
+  // and no deprecated sampling params (temperature/topP/topK/candidateCount).
   const response = await fetch(GEMINI_API_URL, {
     method: "POST",
     headers: {
@@ -49,18 +75,12 @@ async function generateGeminiResponse(systemPrompt, userContent) {
       "x-goog-api-key": apiKey,
     },
     body: JSON.stringify({
-      contents: [
-        { role: "user", parts: [{ text: systemPrompt }] },
-        {
-          role: "model",
-          parts: [{ text: "Understood. Please provide the details." }],
-        },
-        { role: "user", parts: [{ text: userContent }] },
-      ],
+      system_instruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      contents: [{ role: "user", parts: [{ text: userContent }] }],
       generationConfig: {
-        temperature: 0.7,
-        candidateCount: 1,
-        maxOutputTokens: 800,
+        maxOutputTokens,
       },
     }),
   });
@@ -100,7 +120,7 @@ function sendPomodoroNotification(title, message) {
 
 function schedulePomodoroAlarm(delayInMs) {
   chrome.alarms.create("pomodoroTimer", {
-    when: Date.now() + delayInMs,
+    when: Date.now() + Math.max(delayInMs, 0),
   });
 }
 
@@ -136,25 +156,50 @@ function loadPomodoroState() {
   });
 }
 
-function getCachedDistraction(url) {
-  const entry = distractionCache.get(url);
+function getDistractionCacheKey(url, taskId) {
+  return `${taskId || "unknown"}|${url}`;
+}
+
+function getCachedDistraction(url, taskId) {
+  const key = getDistractionCacheKey(url, taskId);
+  const entry = distractionCache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.timestamp > DISTRACTION_CACHE_TTL_MS) {
-    distractionCache.delete(url);
+    distractionCache.delete(key);
     return null;
   }
   return entry.isDistracted;
 }
 
-function setCachedDistraction(url, isDistracted) {
+function setCachedDistraction(url, taskId, isDistracted) {
+  const key = getDistractionCacheKey(url, taskId);
   if (distractionCache.size >= DISTRACTION_CACHE_MAX_SIZE) {
     const oldestKey = distractionCache.keys().next().value;
     distractionCache.delete(oldestKey);
   }
-  distractionCache.set(url, { isDistracted, timestamp: Date.now() });
+  distractionCache.set(key, { isDistracted, timestamp: Date.now() });
+}
+
+function parseDistractionResult(res) {
+  const match = String(res || "")
+    .trim()
+    .match(/^([01])\b/);
+  if (!match) return null;
+  return match[1] === "1";
+}
+
+function shouldSkipUrl(url) {
+  if (!url) return true;
+  return SKIP_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
 
 function advancePomodoroPhase() {
+  // Guard against zombie alarms after Unfocus
+  if (!pomodoroState.isRunning) {
+    chrome.alarms.clear("pomodoroTimer");
+    return;
+  }
+
   chrome.alarms.clear("pomodoroTimer");
 
   if (pomodoroState.phase === "work") {
@@ -170,7 +215,6 @@ function advancePomodoroPhase() {
     schedulePomodoroAlarm(pomodoroState.breakDuration * 1000);
 
     focus.active = false;
-    focus.pomodoroRunning = true;
     saveFocusStateToStorage();
   } else {
     sendPomodoroNotification(
@@ -190,41 +234,69 @@ function advancePomodoroPhase() {
   savePomodoroState();
 }
 
-async function initializeStates() {
-  await loadFocusStateFromStorage();
-  await loadPomodoroState();
-  await migrateLegacyTasksIfNeeded();
+function catchUpOverduePhases() {
+  if (!pomodoroState.isRunning || typeof pomodoroState.startTime !== "number") {
+    return;
+  }
 
-  if (pomodoroState.isRunning && typeof pomodoroState.startTime === "number") {
-    const remainingMs =
-      pomodoroState.phase === "work"
-        ? pomodoroState.workDuration * 1000 -
-          (Date.now() - pomodoroState.startTime)
-        : pomodoroState.breakDuration * 1000 -
-          (Date.now() - pomodoroState.startTime);
+  // Cap catch-up so a long sleep doesn't fire dozens of notifications
+  let safety = 0;
+  while (safety < 4 && pomodoroState.isRunning) {
+    const durationMs =
+      (pomodoroState.phase === "work"
+        ? pomodoroState.workDuration
+        : pomodoroState.breakDuration) * 1000;
+    const remainingMs = durationMs - (Date.now() - pomodoroState.startTime);
 
     if (remainingMs > 0) {
       schedulePomodoroAlarm(remainingMs);
-    } else {
-      advancePomodoroPhase();
+      break;
     }
+
+    advancePomodoroPhase();
+    safety += 1;
   }
 }
 
-chrome.runtime.onStartup.addListener(initializeStates);
-chrome.runtime.onInstalled.addListener(initializeStates);
+async function initializeStates() {
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    await loadFocusStateFromStorage();
+    await loadPomodoroState();
+    await migrateLegacyTasksIfNeeded();
+    catchUpOverduePhases();
+    focusStateLoaded = true;
+  })().finally(() => {
+    // Allow future re-init only after this one settles (e.g. SW restart)
+  });
+
+  return initPromise;
+}
+
+chrome.runtime.onStartup.addListener(() => {
+  initializeStates();
+});
+chrome.runtime.onInstalled.addListener(() => {
+  initializeStates();
+});
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "pomodoroTimer") {
-    loadPomodoroState().then(() => {
-      advancePomodoroPhase();
-    });
-  }
+  if (alarm.name !== "pomodoroTimer") return;
+
+  loadPomodoroState().then(() => {
+    if (!pomodoroState.isRunning) {
+      chrome.alarms.clear("pomodoroTimer");
+      return;
+    }
+    advancePomodoroPhase();
+  });
 });
 
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   switch (request.type) {
-    case "newTask": {
+    case "newTask":
+    case "retrySubtasks": {
       const { id, name, description } = request;
       const systemPrompt = `
       You are an AI assistant that generates actionable subtasks for a given task. Follow these rules strictly:
@@ -252,6 +324,9 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       `;
       const userContent = `Task Name: ${name}\nTask Description: ${description}`;
 
+      // Acknowledge immediately so the message channel doesn't hang
+      sendResponse({ accepted: true });
+
       generateGeminiResponse(systemPrompt, userContent)
         .then((res) => {
           const { subtasks, error } = parseSubtasksFromGeminiResponse(res);
@@ -270,7 +345,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
               "Failed to generate subtasks. Check your API key in Settings.",
           );
         });
-      return true;
+      return false;
     }
 
     case "focus": {
@@ -281,7 +356,6 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       focus.id = newActiveState ? id : null;
       focus.name = newActiveState ? name : null;
       focus.description = newActiveState ? description : null;
-      focus.pomodoroRunning = newActiveState;
       saveFocusStateToStorage();
 
       (async () => {
@@ -309,6 +383,7 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
           pomodoroState.focusedTaskId = null;
           pomodoroState.focusedTaskName = null;
           pomodoroState.startTime = null;
+          chrome.alarms.clear("pomodoroTimer");
           savePomodoroState();
           sendPomodoroNotification(
             "Pomodoro Stopped",
@@ -343,23 +418,6 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       return true;
     }
 
-    case "resetPomodoro": {
-      pomodoroState.isRunning = false;
-      pomodoroState.phase = "work";
-      pomodoroState.remainingTime = pomodoroState.workDuration;
-      pomodoroState.focusedTaskId = null;
-      pomodoroState.focusedTaskName = null;
-      pomodoroState.startTime = null;
-      chrome.alarms.clear("pomodoroTimer");
-      savePomodoroState();
-      sendPomodoroNotification(
-        "Pomodoro Reset",
-        "Your Pomodoro timer has been reset.",
-      );
-      sendResponse({ success: true, newState: pomodoroState });
-      return true;
-    }
-
     case "checkPomodoroPhase": {
       loadPomodoroState().then(() => {
         if (
@@ -382,13 +440,19 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
       return true;
     }
 
+    case "allowDistractionOnce": {
+      const { url } = request;
+      if (url && focus.id) {
+        setCachedDistraction(url, focus.id, false);
+      }
+      sendResponse({ success: true });
+      return false;
+    }
+
     default:
       break;
   }
 });
-
-let debounceTimer;
-let focusStateLoaded = false;
 
 async function ensureFocusStateLoaded() {
   if (!focusStateLoaded) {
@@ -397,47 +461,16 @@ async function ensureFocusStateLoaded() {
   }
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
-  if (changeInfo.status !== "complete") return;
+async function checkDistractionForTab(tabId, url, title, taskId, taskName) {
+  const cacheKey = getDistractionCacheKey(url, taskId);
 
-  await ensureFocusStateLoaded();
+  if (inFlightDistractionChecks.has(cacheKey)) {
+    return inFlightDistractionChecks.get(cacheKey);
+  }
 
-  if (!focus.active || !focus.name) return;
-
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(async () => {
-    const [activeTab] = await chrome.tabs.query({
-      active: true,
-      lastFocusedWindow: true,
-    });
-
-    if (!activeTab || activeTab.id !== tabId) return;
-
-    const { url, title } = activeTab;
-
-    const internalChromeUrls = [
-      "chrome://",
-      "about:",
-      "edge://",
-      "brave://",
-      "file:///",
-      "data:",
-    ];
-    if (!url || internalChromeUrls.some((prefix) => url.startsWith(prefix))) {
-      return;
-    }
-
-    if (url === chrome.runtime.getURL("popup/distracted.html")) return;
-
-    const cached = getCachedDistraction(url);
-    if (cached !== null) {
-      if (cached && focus.active) {
-        chrome.tabs.update(tabId, {
-          url: chrome.runtime.getURL("popup/distracted.html"),
-        });
-      }
-      return;
-    }
+  const checkPromise = (async () => {
+    const cached = getCachedDistraction(url, taskId);
+    if (cached !== null) return cached;
 
     const systemPrompt = `Given a website URL and/or the tab title, and a user's current task focus, determine if the user is distracted. Return ONLY '1' if distracted and '0' if not distracted, followed by a brief explanation.
 
@@ -454,18 +487,66 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
     Output: 1 - Checking email is often a distraction from focused work like writing an essay.
     `;
 
-    const userContent = `URL: ${url}, Tab Title: ${title}, Topic: ${focus.name}`;
+    const userContent = `URL: ${url}, Tab Title: ${title}, Topic: ${taskName}`;
+    const res = await generateGeminiResponse(systemPrompt, userContent, {
+      maxOutputTokens: 80,
+    });
+    const isDistracted = parseDistractionResult(res);
+    if (isDistracted === null) return false;
+
+    setCachedDistraction(url, taskId, isDistracted);
+    return isDistracted;
+  })().finally(() => {
+    inFlightDistractionChecks.delete(cacheKey);
+  });
+
+  inFlightDistractionChecks.set(cacheKey, checkPromise);
+  return checkPromise;
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
+  if (changeInfo.status !== "complete") return;
+
+  await ensureFocusStateLoaded();
+
+  if (!focus.active || !focus.name || !focus.id) return;
+
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    const [activeTab] = await chrome.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+
+    if (!activeTab || activeTab.id !== tabId) return;
+
+    const { url, title } = activeTab;
+    if (shouldSkipUrl(url)) return;
+    if (url === chrome.runtime.getURL("popup/distracted.html")) return;
+
+    const taskId = focus.id;
+    const taskName = focus.name;
 
     try {
-      const res = await generateGeminiResponse(systemPrompt, userContent);
-      if (!focus.active) return;
+      const isDistracted = await checkDistractionForTab(
+        tabId,
+        url,
+        title,
+        taskId,
+        taskName,
+      );
 
-      const isDistracted = res.trim().startsWith("1");
-      setCachedDistraction(url, isDistracted);
+      // Re-validate after the (possibly slow) API call
+      if (!focus.active || focus.id !== taskId) return;
+
+      const freshTab = await chrome.tabs.get(tabId).catch(() => null);
+      if (!freshTab || freshTab.url !== url) return;
 
       if (isDistracted) {
         chrome.tabs.update(tabId, {
-          url: chrome.runtime.getURL("popup/distracted.html"),
+          url: chrome.runtime.getURL(
+            `popup/distracted.html?blocked=${encodeURIComponent(url)}`,
+          ),
         });
       }
     } catch (err) {
@@ -474,7 +555,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
   }, 1000);
 });
 
-// Reload focus state when it changes so in-memory state stays in sync
 chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === "local" && changes.focusState) {
     Object.assign(focus, changes.focusState.newValue || {});

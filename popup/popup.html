@@ -23,7 +23,13 @@
           />
         </a>
 
-        <a href="../settings.html" title="Settings">⚙️</a>
+        <a
+          href="../settings.html"
+          class="settings-link"
+          aria-label="Settings"
+          title="Settings"
+          >Settings</a
+        >
       </header>
 
       <div id="api-key-banner" class="api-key-banner" hidden>
@@ -43,13 +49,18 @@
         <div class="taskList"></div>
 
         <div class="button-container">
-          <a class="link" href="./AddTask/addTask.html">
-            <button class="btn" id="add-task-home">Add a task</button>
-          </a>
+          <a
+            class="btn link-btn"
+            id="add-task-home"
+            href="./AddTask/addTask.html"
+            >Add a task</a
+          >
         </div>
         <div class="button-container">
           <div id="clearTasks">
-            <button class="btn" id="clearTasksBtn">Clear all tasks</button>
+            <button class="btn" id="clearTasksBtn" type="button">
+              Clear all tasks
+            </button>
           </div>
         </div>
       </main>
